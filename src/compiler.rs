@@ -2,19 +2,26 @@ use crate::ast::AST;
 use crate::parser;
 use std::fmt;
 
+/// The idea behind this enum is to be our internal bytecode.
+/// Each instruction pops it's inputs from the stack and then pops them
+/// back.
 #[derive(Debug)]
 pub enum Instructions {
     PUSH(i32),
     ADD,
+    SUB,
     MUL,
     DIV,
 }
 
 impl fmt::Display for Instructions {
+    /// This is how we get from our bytecode to x86's
+    //TODO: this function calling stuff should be abstracted.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {
             Instructions::PUSH(x) => write!(f, "mov ax, {}\npush ax", x),
             Instructions::ADD => write!(f, "pop bx\npop ax\nadd ax, bx\npush ax"),
+            Instructions::SUB => write!(f, "pop bx\npop ax\nsub ax, bx\npush ax"),
             Instructions::MUL => write!(f, "pop bx\npop ax\nmul bx\npush ax"),
             Instructions::DIV => write!(f, "pop bx\npop ax\ndiv bx\npush ax"),
         }
@@ -48,7 +55,18 @@ pub fn compile(ast: &AST) -> Vec<Instructions> {
 
             v
         }
+        AST::Sub(a, b) => {
+            let l = compile(a);
+            let r = compile(b);
 
+            let mut v: Vec<Instructions> = Vec::new();
+
+            v.extend(l);
+            v.extend(r);
+            v.push(SUB);
+
+            v
+        }
         AST::Mul(a, b) => {
             let l = compile(a);
             let r = compile(b);
@@ -61,7 +79,6 @@ pub fn compile(ast: &AST) -> Vec<Instructions> {
 
             v
         }
-
         AST::Div(a, b) => {
             let l = compile(a);
             let r = compile(b);
@@ -74,7 +91,6 @@ pub fn compile(ast: &AST) -> Vec<Instructions> {
 
             v
         }
-        _ => todo!("Can't compile"),
     }
 }
 

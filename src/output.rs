@@ -1,7 +1,7 @@
 use std::io::Write;
 use std::process::Command;
 
-pub fn build_and_run_with_template(program: &str, template: &str) {
+pub fn build_and_run_with_template(program: &str, template: &str) -> i32 {
     let f = "internal";
 
     let prog = use_template(program, template);
@@ -9,16 +9,16 @@ pub fn build_and_run_with_template(program: &str, template: &str) {
     write_to_file(prog.as_ref(), format!("asm/{}.asm", f).as_ref()).unwrap();
     assemble(format!("asm/{}.asm", f).as_ref());
     link(format!("asm/{}.o", f).as_ref());
-    execute("asm/a.out");
+    execute("asm/a.out")
 }
 
-pub fn build_and_run(program: &str) {
+pub fn build_and_run(program: &str) -> i32 {
     let f = "internal";
 
     write_to_file(program, format!("asm/{}.asm", f).as_ref()).unwrap();
     assemble(format!("asm/{}.asm", f).as_ref());
     link(format!("asm/{}.o", f).as_ref());
-    execute("asm/a.out");
+    execute("asm/a.out")
 }
 
 fn use_template(program: &str, template: &str) -> String {
@@ -57,7 +57,7 @@ fn link(fname: &str) {
     println!("Linked with output: {:?}", output);
 }
 
-fn execute(fname: &str) {
+fn execute(fname: &str) -> i32 {
     let output = Command::new(fname)
         .status()
         .unwrap_or_else(|e| panic!("Falied to execute {}", e))
@@ -65,6 +65,8 @@ fn execute(fname: &str) {
         .unwrap();
 
     blue_ln!("Executed {} with output {:?}", fname, output);
+
+    output
 }
 
 #[cfg(test)]

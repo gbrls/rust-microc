@@ -10,13 +10,13 @@ int 0x80     ; make system call
 _start:
 mov ax, 2
 push ax
-mov ax, 3
-push ax
-mov ax, 4
+mov ax, 2
 push ax
 pop bx
 pop ax
-mul bx
+div bx
+push ax
+mov ax, 3
 push ax
 pop bx
 pop ax
