@@ -22,7 +22,8 @@ pub fn build_and_run(program: &str) -> i32 {
 }
 
 fn use_template(program: &str, template: &str) -> String {
-    let mut t = std::fs::read_to_string("asm/template").unwrap();
+    cyan_ln!("Tying to read {}", template);
+    let mut t = std::fs::read_to_string(template).unwrap();
     t.push('\n');
     t.push_str(program);
 
@@ -58,6 +59,8 @@ fn link(fname: &str) {
 }
 
 fn execute(fname: &str) -> i32 {
+    cyan_ln!("Trying to execute {}", fname);
+
     let output = Command::new(fname)
         .status()
         .unwrap_or_else(|e| panic!("Falied to execute {}", e))
@@ -66,7 +69,20 @@ fn execute(fname: &str) -> i32 {
 
     blue_ln!("Executed {} with output {:?}", fname, output);
 
+    //delete(fname);
+
     output
+}
+
+fn delete(fname: &str) {
+    cyan_ln!("Trying to delete {}", fname);
+
+    let output = Command::new("rm")
+        .arg(fname)
+        .status()
+        .unwrap_or_else(|e| panic!("Falied to execute {}", e))
+        .code()
+        .unwrap();
 }
 
 #[cfg(test)]
@@ -80,13 +96,14 @@ mod tests {
     #[test]
     fn test_link() {
         link("asm/ret.o");
+        delete("asm/a.out");
     }
 
     #[test]
-    fn test_exec() {
-        execute("asm/a.out");
-    }
-
+    //fn test_exec() {
+    //    execute("asm/a.out");
+    //    delete("asm/a.out");
+    //}
     #[test]
     fn test_pipeline() {
         let f = std::fs::read_to_string("asm/ret.asm").unwrap();
@@ -95,6 +112,17 @@ mod tests {
 
     #[test]
     fn test_pipeline_template() {
-        build_and_run_with_template("push 42\nEXIT", "asm/template");
+        ls();
+        build_and_run_with_template("push 42\nEXIT", "./asm/template");
+    }
+
+    fn ls() {
+        let output = Command::new("ls")
+            .arg("./asm")
+            .output()
+            .unwrap_or_else(|e| panic!("Falied to execute {}", e))
+            .stdout
+            .to_ascii_lowercase();
+        red_ln!("{:?}", String::from_utf8(output));
     }
 }

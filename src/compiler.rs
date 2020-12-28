@@ -1,8 +1,10 @@
+//TODO: Symbol table!
+
 use crate::ast::AST;
 use crate::parser;
 use std::fmt;
 
-/// The idea behind this enum is to be our internal bytecode.
+/// The idea behind this enum is to be our IR.
 /// Each instruction pops it's inputs from the stack and then pops them
 /// back.
 #[derive(Debug)]
@@ -15,7 +17,7 @@ pub enum Instructions {
 }
 
 impl fmt::Display for Instructions {
-    /// This is how we get from our bytecode to x86's
+    /// This is how we get from our IR to x86 asm (in this case nasm's)
     //TODO: this function calling stuff should be abstracted.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {

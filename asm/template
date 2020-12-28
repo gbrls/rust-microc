@@ -1,4 +1,6 @@
 global _start
+section .data
+; data will go here
 section .text
 
 %macro EXIT 0
