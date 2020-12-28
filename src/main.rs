@@ -28,7 +28,11 @@ mod tests {
     use super::*;
 
     fn cmp_eval_compile(input: &str) -> bool {
-        let eval = parser::parse(input).eval();
+        let parsed = parser::parse(input);
+
+        cyan_ln!("Cmp: parsed {:?} = {:?}", input, parsed);
+
+        let eval = parsed.eval();
         let exec = compile_and_run(input);
 
         eval == exec
@@ -39,6 +43,7 @@ mod tests {
     fn test_eval_and_compile() {
         assert!(cmp_eval_compile("1 + 2"));
         assert!(cmp_eval_compile("2 * 2 + 3"));
-        assert!(cmp_eval_compile("2 / 2 + 3"));
+        assert!(cmp_eval_compile("2/2+3"));
+        assert!(cmp_eval_compile("((  1+2  ) * 3+2  )    *4"));
     }
 }

@@ -8,29 +8,32 @@ use std::fmt;
 /// Each instruction pops it's inputs from the stack and then pops them
 /// back.
 #[derive(Debug)]
-pub enum Instructions {
+pub enum IR {
     PUSH(i32),
     ADD,
     SUB,
     MUL,
     DIV,
+    GetGlobal(String),
+    SetGlobal(String),
 }
 
-impl fmt::Display for Instructions {
+impl fmt::Display for IR {
     /// This is how we get from our IR to x86 asm (in this case nasm's)
     //TODO: this function calling stuff should be abstracted.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self {
-            Instructions::PUSH(x) => write!(f, "mov ax, {}\npush ax", x),
-            Instructions::ADD => write!(f, "pop bx\npop ax\nadd ax, bx\npush ax"),
-            Instructions::SUB => write!(f, "pop bx\npop ax\nsub ax, bx\npush ax"),
-            Instructions::MUL => write!(f, "pop bx\npop ax\nmul bx\npush ax"),
-            Instructions::DIV => write!(f, "pop bx\npop ax\ndiv bx\npush ax"),
+        match self {
+            IR::PUSH(x) => write!(f, "mov ax, {}\npush ax", x),
+            IR::ADD => write!(f, "pop bx\npop ax\nadd ax, bx\npush ax"),
+            IR::SUB => write!(f, "pop bx\npop ax\nsub ax, bx\npush ax"),
+            IR::MUL => write!(f, "pop bx\npop ax\nmul bx\npush ax"),
+            IR::DIV => write!(f, "pop bx\npop ax\ndiv bx\npush ax"),
+            x => todo!("Cant compile this IR to asm {:?}", x),
         }
     }
 }
 
-pub fn instr_to_string(is: &Vec<Instructions>) -> String {
+pub fn instr_to_string(is: &[IR]) -> String {
     let mut s = String::new();
     red_ln!("{:?}", is);
 
@@ -41,15 +44,15 @@ pub fn instr_to_string(is: &Vec<Instructions>) -> String {
     s
 }
 
-pub fn compile(ast: &AST) -> Vec<Instructions> {
-    use Instructions::*;
+pub fn compile(ast: &AST) -> Vec<IR> {
+    use IR::*;
     match ast {
         AST::Number(x) => vec![PUSH(x.to_owned())],
         AST::Add(a, b) => {
             let l = compile(a);
             let r = compile(b);
 
-            let mut v: Vec<Instructions> = Vec::new();
+            let mut v: Vec<IR> = Vec::new();
 
             v.extend(l);
             v.extend(r);
@@ -61,7 +64,7 @@ pub fn compile(ast: &AST) -> Vec<Instructions> {
             let l = compile(a);
             let r = compile(b);
 
-            let mut v: Vec<Instructions> = Vec::new();
+            let mut v: Vec<IR> = Vec::new();
 
             v.extend(l);
             v.extend(r);
@@ -73,7 +76,7 @@ pub fn compile(ast: &AST) -> Vec<Instructions> {
             let l = compile(a);
             let r = compile(b);
 
-            let mut v: Vec<Instructions> = Vec::new();
+            let mut v: Vec<IR> = Vec::new();
 
             v.extend(l);
             v.extend(r);
@@ -85,7 +88,7 @@ pub fn compile(ast: &AST) -> Vec<Instructions> {
             let l = compile(a);
             let r = compile(b);
 
-            let mut v: Vec<Instructions> = Vec::new();
+            let mut v: Vec<IR> = Vec::new();
 
             v.extend(l);
             v.extend(r);
@@ -94,7 +97,19 @@ pub fn compile(ast: &AST) -> Vec<Instructions> {
             v
         }
 
-        x => todo!("Compiler can't compile this IR code {:?}", x),
+        AST::GetGlobal(name) => vec![IR::GetGlobal(name.to_owned())],
+
+        AST::AssignGlobal(name, expr) => {
+            let mut c = compile(expr);
+            c.push(IR::SetGlobal(name.to_owned()));
+            c
+        }
+
+        AST::Many(v) => v.iter().map(|t| compile(t)).fold(Vec::new(), |acc, new| {
+            let mut v = acc;
+            v.extend(new);
+            v
+        }),
     }
 }
 
@@ -103,7 +118,7 @@ mod tests {
 
     use super::*;
 
-    fn print_comp(expr: &str) {
+    fn print_expr(expr: &str) {
         let ast = parser::parse(expr);
         let is = compile(&ast);
 
@@ -117,8 +132,8 @@ mod tests {
 
     #[test]
     fn test_add_mul() {
-        print_comp("1 + 2 * 3");
-        print_comp("( 1 + 2 ) * 3");
-        print_comp("( 4 + 4 ) / 2");
+        print_expr("1 + 2 * 3");
+        print_expr("( 1 + 2 ) * 3");
+        print_expr("( 4 + 4 ) / 2");
     }
 }

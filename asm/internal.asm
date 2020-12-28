@@ -10,18 +10,30 @@ int 0x80     ; make system call
 %endmacro
 
 _start:
-mov ax, 2
+mov ax, 1
 push ax
 mov ax, 2
 push ax
 pop bx
 pop ax
-div bx
+add ax, bx
 push ax
 mov ax, 3
 push ax
 pop bx
 pop ax
+mul bx
+push ax
+mov ax, 2
+push ax
+pop bx
+pop ax
 add ax, bx
+push ax
+mov ax, 4
+push ax
+pop bx
+pop ax
+mul bx
 push ax
 EXIT

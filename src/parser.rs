@@ -2,7 +2,7 @@
 // Cheatsheet https://github.com/Geal/nom/blob/master/doc/choosing_a_combinator.md
 
 use crate::ast::AST;
-use nom::{character::complete::*, combinator::*, sequence::*, IResult};
+use nom::{branch::*, character::complete::*, combinator::*, multi::*, sequence::*, IResult};
 use std::str::FromStr;
 
 named!(ignore_ws<&str, &str>, take_while!(|c: char| c.is_whitespace() || c == '\n'));
@@ -18,15 +18,47 @@ named!(number<&str, i32>, preceded!(complete!(ignore_ws), number_i32));
 //    )
 //);
 fn symbol(i: &str) -> IResult<&str, &str> {
-    preceded(complete(ignore_ws), alpha0)(i)
+    preceded(complete(ignore_ws), alpha1)(i)
 }
 
+// <program> ::= <statement> (';'|'\n' <statement>)*
 // <statement> ::= assignStmt | (todo)
 // <assign_stmt> ::= SYMBOL '=' <expression> ';'
 // <expression> ::= <term>
 // <term> ::= <factor> (('+' | '-') <factor>)*
 // <factor> ::= <primary> (('*' | '/') <primary>)*
 // <primary> ::= NUMBER | ( <term> )
+
+fn program(i: &str) -> IResult<&str, AST> {
+    map(
+        tuple((
+            statement,
+            fold_many0(
+                preceded(
+                    preceded(complete(ignore_ws), alt((char(';'), char('\n')))),
+                    statement,
+                ),
+                Vec::new(),
+                |acc, new| {
+                    let mut v = Vec::new();
+                    v.extend(acc);
+                    v.push(new);
+                    v
+                },
+            ),
+        )),
+        |(first, rest)| {
+            let mut v = vec![first];
+            v.extend(rest);
+            AST::Many(v)
+        },
+    )(i)
+}
+
+fn statement(i: &str) -> IResult<&str, AST> {
+    //TODO: maybe remove expression statements?
+    alt((assign, expr))(i)
+}
 
 fn assign(i: &str) -> IResult<&str, AST> {
     map(
@@ -93,18 +125,18 @@ named!(primary<&str, AST>,
     preceded!(complete!(ignore_ws),
         alt!(
             map!(number, |x| AST::Number(x)) |
-            map!(symbol, |x| AST::GetGlobal(x.to_owned())) |
             delimited!(
                 char!('('),
                 term,
                 preceded!(complete!(ignore_ws), char!(')'))
-            )
+            ) |
+            map!(symbol, |x| AST::GetGlobal(x.to_owned()))
         )
     )
 );
 
 pub fn parse(input: &str) -> AST {
-    let (_, ans) = expr(input).unwrap();
+    let (_, ans) = program(input).unwrap();
     ans
 }
 
@@ -140,6 +172,13 @@ mod tests {
     fn test_assign() {
         println!("{:?}", assign("foo  =    1 + 2 + 3"));
         println!("{:?}", assign("a=b"));
+    }
+
+    #[test]
+    fn test_program() {
+        println!("{:?}", program("a=1  ;   b = a * 2"));
+        println!("{:?}", program("1"));
+        println!("{:?}", program("((  1+2  ) * 3+2  )    *4"));
     }
 
     #[test]

@@ -9,6 +9,10 @@ pub enum AST {
 
     AssignGlobal(String, Box<AST>),
     GetGlobal(String),
+
+    // Executes multiple expressions and returns the value of the last.
+    //
+    Many(Vec<AST>),
 }
 
 impl AST {
@@ -20,7 +24,8 @@ impl AST {
             AST::Sub(a, b) => a.eval() - b.eval(),
             AST::Mul(a, b) => a.eval() * b.eval(),
             AST::Div(a, b) => a.eval() / b.eval(),
-            _ => todo!("Implement evaluation for Global"),
+            AST::Many(v) => v.last().expect("Program can't be empy").eval(),
+            x => todo!("Implement evaluation for {:?}", x),
         }
     }
 }
