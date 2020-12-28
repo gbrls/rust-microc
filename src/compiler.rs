@@ -2,7 +2,7 @@
 
 use crate::ast::AST;
 use crate::parser;
-use std::fmt;
+use std::{collections::HashSet, fmt};
 
 /// The idea behind this enum is to be our IR.
 /// Each instruction pops it's inputs from the stack and then pops them
@@ -28,14 +28,34 @@ impl fmt::Display for IR {
             IR::SUB => write!(f, "pop bx\npop ax\nsub ax, bx\npush ax"),
             IR::MUL => write!(f, "pop bx\npop ax\nmul bx\npush ax"),
             IR::DIV => write!(f, "pop bx\npop ax\ndiv bx\npush ax"),
-            x => todo!("Cant compile this IR to asm {:?}", x),
+            IR::GetGlobal(v) => write!(f, "mov al, [{}]\npush ax", v),
+            IR::SetGlobal(v) => write!(f, "pop ax\nmov [{}], al", v),
+            //x => todo!("Cant compile this IR to asm {:?}", x),
         }
     }
 }
 
-pub fn instr_to_string(is: &[IR]) -> String {
-    let mut s = String::new();
+pub fn ir_to_asm(is: &[IR]) -> String {
     red_ln!("{:?}", is);
+    let mut globals = HashSet::new();
+    for i in is {
+        match i {
+            IR::SetGlobal(x) => globals.insert(x),
+            IR::GetGlobal(x) => globals.insert(x),
+            _ => false,
+        };
+    }
+
+    cyan_ln!("Globals {:?}", globals);
+
+    let mut s = String::new();
+
+    s.push_str("\nsection .data\n\n");
+    for var in globals {
+        s.push_str(format!("{} db 0\n", var).as_str());
+    }
+    s.push_str("\nsection .text\n");
+    s.push_str("\n_start:\n\n");
 
     for i in is {
         s.push_str(format!("{}\n", i).as_str());

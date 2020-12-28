@@ -14,7 +14,7 @@ mod parser;
 
 fn compile_and_run(input: &str) -> i32 {
     let ast = parser::parse(input);
-    let mut ins = compiler::instr_to_string(&compiler::compile(&ast));
+    let mut ins = compiler::ir_to_asm(&compiler::compile(&ast));
     ins.push_str("EXIT\n");
     output::build_and_run_with_template(ins.as_str(), "asm/template")
 }
@@ -44,6 +44,14 @@ mod tests {
         assert!(cmp_eval_compile("1 + 2"));
         assert!(cmp_eval_compile("2 * 2 + 3"));
         assert!(cmp_eval_compile("2/2+3"));
-        assert!(cmp_eval_compile("((  1+2  ) * 3+2  )    *4"));
+        assert!(cmp_eval_compile("((  1+2  ) * 3+4  )    *4"));
+    }
+
+    #[test]
+    fn test_globals() {
+        println!(
+            "{:?}",
+            compile_and_run("a = 10; a = a * a; y = a / 20 - 1; y")
+        )
     }
 }
