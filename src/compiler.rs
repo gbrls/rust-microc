@@ -93,6 +93,8 @@ pub fn compile(ast: &AST) -> Vec<Instructions> {
 
             v
         }
+
+        x => todo!("Compiler can't compile this IR code {:?}", x),
     }
 }
 

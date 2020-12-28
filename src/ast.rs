@@ -6,6 +6,9 @@ pub enum AST {
 
     Mul(Box<AST>, Box<AST>),
     Div(Box<AST>, Box<AST>),
+
+    AssignGlobal(String, Box<AST>),
+    GetGlobal(String),
 }
 
 impl AST {
@@ -17,6 +20,7 @@ impl AST {
             AST::Sub(a, b) => a.eval() - b.eval(),
             AST::Mul(a, b) => a.eval() * b.eval(),
             AST::Div(a, b) => a.eval() / b.eval(),
+            _ => todo!("Implement evaluation for Global"),
         }
     }
 }
