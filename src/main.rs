@@ -12,15 +12,23 @@ mod compiler;
 mod output;
 mod parser;
 
+fn exec_file(path: &str) {
+    let contents = std::fs::read_to_string(path).expect("File not found");
+    red_ln!("contents: {:?}", contents);
+    let res = compile_and_run(contents.as_str());
+    cyan_ln!("{} -> {}", path, res);
+}
+
 fn compile_and_run(input: &str) -> i32 {
     let ast = parser::parse(input);
+    red_ln!("ast: {:?}", ast);
     let mut ins = compiler::ir_to_asm(&compiler::compile(&ast));
     ins.push_str("EXIT\n");
     output::build_and_run_with_template(ins.as_str(), "asm/template")
 }
 
 fn main() {
-    compile_and_run("(6-1)/2");
+    exec_file("examples/1.mc")
 }
 
 #[cfg(test)]
@@ -45,6 +53,7 @@ mod tests {
         assert!(cmp_eval_compile("2 * 2 + 3"));
         assert!(cmp_eval_compile("2/2+3"));
         assert!(cmp_eval_compile("((  1+2  ) * 3+4  )    *4"));
+        assert!(cmp_eval_compile("(6-1)/2"));
     }
 
     #[test]

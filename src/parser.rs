@@ -1,12 +1,16 @@
 //TODO: Convert from macros to functions, more: http://unhandledexpression.com/general/2019/06/17/nom-5-is-here.html
 // Cheatsheet https://github.com/Geal/nom/blob/master/doc/choosing_a_combinator.md
+//FIXME: Nom for some reason is not working with \n, so we map \n to ; and then parse
+//TODO: comments
 
 use crate::ast::AST;
-use nom::{branch::*, character::complete::*, combinator::*, multi::*, sequence::*, IResult};
+use nom::{
+    branch::*, bytes::complete::*, character::complete::*, combinator::*, multi::*, sequence::*,
+    IResult,
+};
 use std::str::FromStr;
 
-named!(ignore_ws<&str, &str>, take_while!(|c: char| c.is_whitespace() || c == '\n'));
-
+named!(ignore_ws<&str, &str>, take_while!(|c: char| c.is_whitespace()));
 // This is more "idiomatic nom", does the same as the previous and then converts the input to i32
 named!(number_i32<&str, i32>, map!(digit1, |i| i32::from_str(i).unwrap()));
 named!(number<&str, i32>, preceded!(complete!(ignore_ws), number_i32));
@@ -19,6 +23,14 @@ named!(number<&str, i32>, preceded!(complete!(ignore_ws), number_i32));
 //);
 fn symbol(i: &str) -> IResult<&str, &str> {
     preceded(complete(ignore_ws), alpha1)(i)
+}
+
+fn delim(i: &str) -> IResult<&str, Vec<char>> {
+    many1(alt((newline, char(';'))))(i)
+}
+
+fn comment(i: &str) -> IResult<&str, &str> {
+    preceded(tag("//"), take_while(|c| c != ';'))(i)
 }
 
 // <program> ::= <statement> (';'|'\n' <statement>)*
@@ -34,10 +46,7 @@ fn program(i: &str) -> IResult<&str, AST> {
         tuple((
             statement,
             fold_many0(
-                preceded(
-                    preceded(complete(ignore_ws), alt((char(';'), char('\n')))),
-                    statement,
-                ),
+                preceded(preceded(complete(ignore_ws), delim), statement),
                 Vec::new(),
                 |acc, new| {
                     let mut v = Vec::new();
@@ -50,6 +59,26 @@ fn program(i: &str) -> IResult<&str, AST> {
         |(first, rest)| {
             let mut v = vec![first];
             v.extend(rest);
+            AST::Many(v)
+        },
+    )(i)
+}
+
+fn program_new(i: &str) -> IResult<&str, AST> {
+    map(
+        tuple((
+            statement,
+            many1(preceded(
+                preceded(complete(ignore_ws), alt((newline, char(';')))),
+                statement,
+            )),
+        )),
+        |(first, rest)| {
+            let mut v = Vec::new();
+            v.push(first);
+
+            v.extend(rest);
+
             AST::Many(v)
         },
     )(i)
@@ -136,7 +165,18 @@ named!(primary<&str, AST>,
 );
 
 pub fn parse(input: &str) -> AST {
-    let (_, ans) = program(input).unwrap();
+    let mut ninput = String::new();
+
+    for l in input.lines() {
+        if !l.starts_with("//") && !l.is_empty() {
+            ninput.push_str(l);
+            ninput.push(';');
+        }
+    }
+
+    ninput = ninput.trim_end_matches(';').to_string();
+
+    let (_, ans) = program(ninput.as_str()).unwrap();
     ans
 }
 
@@ -176,9 +216,18 @@ mod tests {
 
     #[test]
     fn test_program() {
-        println!("{:?}", program("a=1  ;   b = a * 2"));
+        println!("{:?}", program(" a=1  ;   b = a * 2"));
         println!("{:?}", program("1"));
         println!("{:?}", program("((  1+2  ) * 3+2  )    *4"));
+        println!("{:?}", program("1\n4\n3"));
+        println!("{:?}", program_new("1 ; 4 ; 3  "));
+        println!("{:?}", program_new("1 ; 4 ;  16"));
+
+        println!("{:?}", test_newline(";1+1;1*2\n2*3"));
+    }
+
+    fn test_newline(i: &str) -> IResult<&str, Vec<AST>> {
+        many0(preceded(alt((newline, char(';'))), expr))(i)
     }
 
     #[test]
