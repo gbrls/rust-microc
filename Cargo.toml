@@ -9,3 +9,5 @@ edition = "2018"
 [dependencies]
 nom = "6"
 colour = "0.5.0"
+strum = "0.20"
+strum_macros = "0.20"

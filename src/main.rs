@@ -1,3 +1,5 @@
+use ast::Type;
+
 //TODO: Add support for the ternary operator
 //TODO: some tests fail because the OS can't open/execute the .o or a.out files
 
@@ -6,6 +8,11 @@ extern crate nom;
 
 #[macro_use]
 extern crate colour;
+
+extern crate strum;
+
+#[macro_use]
+extern crate strum_macros;
 
 mod ast;
 mod compiler;
@@ -28,7 +35,8 @@ fn compile_and_run(input: &str) -> i32 {
 }
 
 fn main() {
-    exec_file("examples/1.mc")
+    exec_file("examples/1.mc");
+    exec_file("examples/2.mc")
 }
 
 #[cfg(test)]

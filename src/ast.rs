@@ -9,6 +9,7 @@ pub enum AST {
 
     AssignGlobal(String, Box<AST>),
     GetGlobal(String),
+    DeclareGlobal(String, Type),
 
     // Executes multiple expressions and returns the value of the last.
     //
@@ -26,6 +27,23 @@ impl AST {
             AST::Div(a, b) => a.eval() / b.eval(),
             AST::Many(v) => v.last().expect("Program can't be empy").eval(),
             x => todo!("Implement evaluation for {:?}", x),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, strum_macros::EnumIter)]
+pub enum Type {
+    INT,
+    BOOL,
+}
+
+use std::fmt;
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Type::INT => write!(f, "int"),
+            Type::BOOL => write!(f, "bool"),
         }
     }
 }

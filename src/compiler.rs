@@ -130,6 +130,8 @@ pub fn compile(ast: &AST) -> Vec<IR> {
             v.extend(new);
             v
         }),
+
+        AST::DeclareGlobal(_, _) => Vec::new(),
     }
 }
 

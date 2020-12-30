@@ -3,14 +3,14 @@
 //FIXME: Nom for some reason is not working with \n, so we map \n to ; and then parse
 //TODO: comments
 
-use crate::ast::AST;
+use crate::ast::{Type, AST};
 use nom::{
     branch::*, bytes::complete::*, character::complete::*, combinator::*, multi::*, sequence::*,
     IResult,
 };
 use std::str::FromStr;
 
-named!(ignore_ws<&str, &str>, take_while!(|c: char| c.is_whitespace()));
+named!(ignore_ws<&str, &str>, take_while!(|c: char| c.is_whitespace() || c == '\n'));
 // This is more "idiomatic nom", does the same as the previous and then converts the input to i32
 named!(number_i32<&str, i32>, map!(digit1, |i| i32::from_str(i).unwrap()));
 named!(number<&str, i32>, preceded!(complete!(ignore_ws), number_i32));
@@ -25,12 +25,27 @@ fn symbol(i: &str) -> IResult<&str, &str> {
     preceded(complete(ignore_ws), alpha1)(i)
 }
 
+//FIXME: maybe this is a problem
 fn delim(i: &str) -> IResult<&str, Vec<char>> {
     many1(alt((newline, char(';'))))(i)
 }
 
-fn comment(i: &str) -> IResult<&str, &str> {
-    preceded(tag("//"), take_while(|c| c != ';'))(i)
+fn ptype(i: &str) -> IResult<&str, Type> {
+    use strum::IntoEnumIterator;
+
+    map(alt((tag("int"), tag("bool"))), |x| {
+        let mut f = None;
+        for v in Type::iter() {
+            if format!("{}", v).as_str() == x {
+                f = Some(v)
+            }
+        }
+        f.expect("Type variant not found")
+    })(i)
+}
+
+fn declare_var(i: &str) -> IResult<&str, AST> {
+    todo!("")
 }
 
 // <program> ::= <statement> (';'|'\n' <statement>)*
@@ -86,7 +101,13 @@ fn program_new(i: &str) -> IResult<&str, AST> {
 
 fn statement(i: &str) -> IResult<&str, AST> {
     //TODO: maybe remove expression statements?
-    alt((assign, expr))(i)
+    alt((complete(declare), assign, expr))(i)
+}
+
+fn declare(i: &str) -> IResult<&str, AST> {
+    map(tuple((preceded(ignore_ws, ptype), symbol)), |(t, name)| {
+        AST::DeclareGlobal(name.to_string(), t)
+    })(i)
 }
 
 fn assign(i: &str) -> IResult<&str, AST> {
@@ -170,11 +191,12 @@ pub fn parse(input: &str) -> AST {
     for l in input.lines() {
         if !l.starts_with("//") && !l.is_empty() {
             ninput.push_str(l);
-            ninput.push(';');
+            //ninput.push(';');
         }
     }
 
-    ninput = ninput.trim_end_matches(';').to_string();
+    //ninput = ninput.trim_end_matches(';').to_string();
+    red_ln!("new input: {}", ninput);
 
     let (_, ans) = program(ninput.as_str()).unwrap();
     ans
@@ -219,15 +241,26 @@ mod tests {
         println!("{:?}", program(" a=1  ;   b = a * 2"));
         println!("{:?}", program("1"));
         println!("{:?}", program("((  1+2  ) * 3+2  )    *4"));
-        println!("{:?}", program("1\n4\n3"));
-        println!("{:?}", program_new("1 ; 4 ; 3  "));
-        println!("{:?}", program_new("1 ; 4 ;  16"));
+        println!("{:?}", program("1;4;3"));
+        //println!("{:?}", program_new("1 ; 4 ; 3  "));
+        //println!("{:?}", program_new("1 ; 4 ;  16"));
 
-        println!("{:?}", test_newline(";1+1;1*2\n2*3"));
+        println!("{:?}", program("bool a; int b; b = 10; b"));
     }
 
     fn test_newline(i: &str) -> IResult<&str, Vec<AST>> {
         many0(preceded(alt((newline, char(';'))), expr))(i)
+    }
+
+    #[test]
+    fn test_type() {
+        println!("{:?}", ptype("bool a"));
+    }
+
+    #[test]
+    fn test_decl() {
+        println!("{:?}", declare("bool a"));
+        println!("{:?}", declare("int b"));
     }
 
     #[test]
