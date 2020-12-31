@@ -8,8 +8,8 @@ global _start
 section .data
 
 ; DB (define byte)
-; DW (define word)
-; DD (define double word)
+; DW (define word 16 bits)
+; DD (define double word 32 bits)
 _globals:
 
 x db 0

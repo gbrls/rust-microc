@@ -1,8 +1,11 @@
 //TODO: Symbol table!
 
-use crate::ast::AST;
+use crate::ast::{Type, AST};
 use crate::parser;
-use std::{collections::HashSet, fmt};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 /// The idea behind this enum is to be our IR.
 /// Each instruction pops it's inputs from the stack and then pops them
@@ -18,59 +21,57 @@ pub enum IR {
     SetGlobal(String),
 }
 
-impl fmt::Display for IR {
-    /// This is how we get from our IR to x86 asm (in this case nasm's)
-    //TODO: this function calling stuff should be abstracted.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl IR {
+    fn emit(&self, symbol_table: &HashMap<String, Type>) -> String {
         match self {
-            IR::PUSH(x) => write!(f, "mov ax, {}\npush ax", x),
-            IR::ADD => write!(f, "pop bx\npop ax\nadd ax, bx\npush ax"),
-            IR::SUB => write!(f, "pop bx\npop ax\nsub ax, bx\npush ax"),
-            IR::MUL => write!(f, "pop bx\npop ax\nmul bx\npush ax"),
-            IR::DIV => write!(f, "pop bx\npop ax\ndiv bx\npush ax"),
-            IR::GetGlobal(v) => write!(f, "mov al, [{}]\npush ax", v),
-            IR::SetGlobal(v) => write!(f, "pop ax\nmov [{}], al", v),
-            //x => todo!("Cant compile this IR to asm {:?}", x),
+            IR::PUSH(x) => format!("mov ax, {}\npush ax", x),
+            IR::ADD => "pop bx\npop ax\nadd ax, bx\npush ax".to_string(),
+            IR::SUB => "pop bx\npop ax\nsub ax, bx\npush ax".to_string(),
+            IR::MUL => "pop bx\npop ax\nmul bx\npush ax".to_string(),
+            IR::DIV => "pop bx\npop ax\ndiv bx\npush ax".to_string(),
+            IR::GetGlobal(v) => format!("mov al, [{}]\npush ax", v),
+            IR::SetGlobal(v) => format!("pop ax\nmov [{}], al", v),
         }
     }
 }
 
-pub fn ir_to_asm(is: &[IR]) -> String {
+pub fn ir_to_asm(is: &[IR], symbol_table: &HashMap<String, Type>) -> String {
     red_ln!("{:?}", is);
-    let mut globals = HashSet::new();
-    for i in is {
-        match i {
-            IR::SetGlobal(x) => globals.insert(x),
-            IR::GetGlobal(x) => globals.insert(x),
-            _ => false,
-        };
-    }
-
-    cyan_ln!("Globals {:?}", globals);
 
     let mut s = String::new();
 
     s.push_str("\nsection .data\n\n");
-    for var in globals {
-        s.push_str(format!("{} db 0\n", var).as_str());
+    for (name, t) in symbol_table {
+        s.push_str(format!("{} db 0\n", name).as_str());
     }
     s.push_str("\nsection .text\n");
     s.push_str("\n_start:\n\n");
 
     for i in is {
-        s.push_str(format!("{}\n", i).as_str());
+        s.push_str(i.emit(symbol_table).as_str());
+        s.push_str("\n");
     }
 
     s
 }
 
-pub fn compile(ast: &AST) -> Vec<IR> {
+pub fn compile(ast: &AST) -> String {
+    let mut sym_tabl = HashMap::new();
+
+    let vec = ast_to_ir(ast, &mut sym_tabl);
+
+    red_ln!("Symbol table: {:?}", sym_tabl);
+
+    ir_to_asm(vec.as_ref(), &sym_tabl)
+}
+
+fn ast_to_ir(ast: &AST, symbol_table: &mut HashMap<String, Type>) -> Vec<IR> {
     use IR::*;
     match ast {
         AST::Number(x) => vec![PUSH(x.to_owned())],
         AST::Add(a, b) => {
-            let l = compile(a);
-            let r = compile(b);
+            let l = ast_to_ir(a, symbol_table);
+            let r = ast_to_ir(b, symbol_table);
 
             let mut v: Vec<IR> = Vec::new();
 
@@ -81,8 +82,8 @@ pub fn compile(ast: &AST) -> Vec<IR> {
             v
         }
         AST::Sub(a, b) => {
-            let l = compile(a);
-            let r = compile(b);
+            let l = ast_to_ir(a, symbol_table);
+            let r = ast_to_ir(b, symbol_table);
 
             let mut v: Vec<IR> = Vec::new();
 
@@ -93,8 +94,8 @@ pub fn compile(ast: &AST) -> Vec<IR> {
             v
         }
         AST::Mul(a, b) => {
-            let l = compile(a);
-            let r = compile(b);
+            let l = ast_to_ir(a, symbol_table);
+            let r = ast_to_ir(b, symbol_table);
 
             let mut v: Vec<IR> = Vec::new();
 
@@ -105,8 +106,8 @@ pub fn compile(ast: &AST) -> Vec<IR> {
             v
         }
         AST::Div(a, b) => {
-            let l = compile(a);
-            let r = compile(b);
+            let l = ast_to_ir(a, symbol_table);
+            let r = ast_to_ir(b, symbol_table);
 
             let mut v: Vec<IR> = Vec::new();
 
@@ -120,18 +121,25 @@ pub fn compile(ast: &AST) -> Vec<IR> {
         AST::GetGlobal(name) => vec![IR::GetGlobal(name.to_owned())],
 
         AST::AssignGlobal(name, expr) => {
-            let mut c = compile(expr);
+            let mut c = ast_to_ir(expr, symbol_table);
             c.push(IR::SetGlobal(name.to_owned()));
             c
         }
 
-        AST::Many(v) => v.iter().map(|t| compile(t)).fold(Vec::new(), |acc, new| {
-            let mut v = acc;
-            v.extend(new);
-            v
-        }),
+        AST::Many(v) => {
+            v.iter()
+                .map(|t| ast_to_ir(t, symbol_table))
+                .fold(Vec::new(), |acc, new| {
+                    let mut v = acc;
+                    v.extend(new);
+                    v
+                })
+        }
 
-        AST::DeclareGlobal(_, _) => Vec::new(),
+        AST::DeclareGlobal(name, t) => {
+            symbol_table.insert(name.to_owned(), t.to_owned());
+            Vec::new()
+        }
     }
 }
 
@@ -142,13 +150,14 @@ mod tests {
 
     fn print_expr(expr: &str) {
         let ast = parser::parse(expr);
-        let is = compile(&ast);
+        let mut symbol_table = HashMap::new();
+        let is = ast_to_ir(&ast, &mut symbol_table);
 
         red_ln!("{:?} => {:?}", ast, is);
-        red_ln!("Compiled: ");
+        red_ln!("ast_to_ird: ");
 
         for i in is {
-            red_ln!("{}", i);
+            red_ln!("{}", i.emit(&symbol_table));
         }
     }
 

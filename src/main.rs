@@ -29,13 +29,13 @@ fn exec_file(path: &str) {
 fn compile_and_run(input: &str) -> i32 {
     let ast = parser::parse(input);
     red_ln!("ast: {:?}", ast);
-    let mut ins = compiler::ir_to_asm(&compiler::compile(&ast));
-    ins.push_str("EXIT\n");
+    let mut ins = compiler::compile(&ast);
+    ins.push_str("\nEXIT\n");
     output::build_and_run_with_template(ins.as_str(), "asm/template")
 }
 
 fn main() {
-    exec_file("examples/1.mc");
+    //exec_file("examples/1.mc");
     exec_file("examples/2.mc")
 }
 
@@ -68,7 +68,7 @@ mod tests {
     fn test_globals() {
         println!(
             "{:?}",
-            compile_and_run("a = 10; a = a * a; y = a / 20 - 1; y")
+            compile_and_run("int a;int y;a = 10; a = a * a; y = a / 20 - 1; y")
         )
     }
 }

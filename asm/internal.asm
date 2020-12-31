@@ -12,4 +12,19 @@ section .text
 
 _start:
 
+mov ax, 6
+push ax
+mov ax, 1
+push ax
+pop bx
+pop ax
+sub ax, bx
+push ax
+mov ax, 2
+push ax
+pop bx
+pop ax
+div bx
+push ax
+
 EXIT
