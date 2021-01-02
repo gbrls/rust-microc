@@ -10,6 +10,7 @@ section .data
 ; DB (define byte)
 ; DW (define word 16 bits)
 ; DD (define double word 32 bits)
+; DQ (define 64 bits)
 _globals:
 
 x db 0

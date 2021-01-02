@@ -31,7 +31,7 @@ impl AST {
     }
 }
 
-#[derive(Debug, Copy, Clone, strum_macros::EnumIter)]
+#[derive(Debug, Copy, Clone, PartialEq, strum_macros::EnumIter)]
 pub enum Type {
     INT,
     BOOL,

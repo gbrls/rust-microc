@@ -1,11 +1,9 @@
-//TODO: Symbol table!
+//x86-64 nasm reference https://www.csee.umbc.edu/portal/help/nasm/sample_64.shtml
 
+use crate::analysis;
 use crate::ast::{Type, AST};
 use crate::parser;
-use std::{
-    collections::{HashMap, HashSet},
-    fmt,
-};
+use std::collections::HashMap;
 
 /// The idea behind this enum is to be our IR.
 /// Each instruction pops it's inputs from the stack and then pops them
@@ -22,7 +20,7 @@ pub enum IR {
 }
 
 impl IR {
-    fn emit(&self, symbol_table: &HashMap<String, Type>) -> String {
+    fn emit(&self, _symbol_table: &HashMap<String, Type>) -> String {
         match self {
             IR::PUSH(x) => format!("mov ax, {}\npush ax", x),
             IR::ADD => "pop bx\npop ax\nadd ax, bx\npush ax".to_string(),
@@ -40,9 +38,14 @@ pub fn ir_to_asm(is: &[IR], symbol_table: &HashMap<String, Type>) -> String {
 
     let mut s = String::new();
 
+    let sz = |t| match t {
+        Type::INT => "dd",
+        Type::BOOL => "db",
+    };
+
     s.push_str("\nsection .data\n\n");
     for (name, t) in symbol_table {
-        s.push_str(format!("{} db 0\n", name).as_str());
+        s.push_str(format!("{} {} 0\n", name, sz(*t)).as_str());
     }
     s.push_str("\nsection .text\n");
     s.push_str("\n_start:\n\n");
@@ -55,16 +58,21 @@ pub fn ir_to_asm(is: &[IR], symbol_table: &HashMap<String, Type>) -> String {
     s
 }
 
-pub fn compile(ast: &AST) -> String {
+pub fn compile(ast: &AST) -> Result<String, analysis::CompilationError> {
     let mut sym_tabl = HashMap::new();
 
     let vec = ast_to_ir(ast, &mut sym_tabl);
 
+    let _ = analysis::vars(ast, &sym_tabl)?;
+    let _ = analysis::types(ast, &sym_tabl)?;
+
     red_ln!("Symbol table: {:?}", sym_tabl);
 
-    ir_to_asm(vec.as_ref(), &sym_tabl)
+    Ok(ir_to_asm(vec.as_ref(), &sym_tabl))
 }
 
+//TODO: Some nodes on the tree don't need a specific instruction,
+// e.g. DeclareGlobal
 fn ast_to_ir(ast: &AST, symbol_table: &mut HashMap<String, Type>) -> Vec<IR> {
     use IR::*;
     match ast {

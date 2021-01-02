@@ -2,6 +2,7 @@
 // Cheatsheet https://github.com/Geal/nom/blob/master/doc/choosing_a_combinator.md
 //FIXME: Nom for some reason is not working with \n, so we map \n to ; and then parse
 //TODO: comments
+//TODO: Boolean literals
 
 use crate::ast::{Type, AST};
 use nom::{
@@ -42,10 +43,6 @@ fn ptype(i: &str) -> IResult<&str, Type> {
         }
         f.expect("Type variant not found")
     })(i)
-}
-
-fn declare_var(i: &str) -> IResult<&str, AST> {
-    todo!("")
 }
 
 // <program> ::= <statement> (';'|'\n' <statement>)*

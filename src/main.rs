@@ -2,6 +2,7 @@ use ast::Type;
 
 //TODO: Add support for the ternary operator
 //TODO: some tests fail because the OS can't open/execute the .o or a.out files
+//TODO: recoverable errors
 
 #[macro_use]
 extern crate nom;
@@ -11,30 +12,35 @@ extern crate colour;
 
 extern crate strum;
 
-#[macro_use]
-extern crate strum_macros;
-
+mod analysis;
 mod ast;
 mod compiler;
 mod output;
 mod parser;
 
-fn exec_file(path: &str) {
+fn exec_file(path: &str) -> Result<(), analysis::CompilationError> {
     let contents = std::fs::read_to_string(path).expect("File not found");
     red_ln!("contents: {:?}", contents);
-    let res = compile_and_run(contents.as_str());
+    let res = compile_and_run(contents.as_str())?;
     cyan_ln!("{} -> {}", path, res);
+
+    Ok(())
 }
 
-fn compile_and_run(input: &str) -> i32 {
+fn compile_and_run(input: &str) -> Result<i32, analysis::CompilationError> {
     let ast = parser::parse(input);
     red_ln!("ast: {:?}", ast);
-    let mut ins = compiler::compile(&ast);
+
+    let mut ins = compiler::compile(&ast)?;
     ins.push_str("\nEXIT\n");
-    output::build_and_run_with_template(ins.as_str(), "asm/template")
+
+    Ok(output::build_and_run_with_template(
+        ins.as_str(),
+        "asm/template",
+    ))
 }
 
-fn main() {
+fn main() -> Result<(), analysis::CompilationError> {
     //exec_file("examples/1.mc");
     exec_file("examples/2.mc")
 }
@@ -49,7 +55,7 @@ mod tests {
         cyan_ln!("Cmp: parsed {:?} = {:?}", input, parsed);
 
         let eval = parsed.eval();
-        let exec = compile_and_run(input);
+        let exec = compile_and_run(input).unwrap();
 
         eval == exec
     }
@@ -66,9 +72,7 @@ mod tests {
 
     #[test]
     fn test_globals() {
-        println!(
-            "{:?}",
-            compile_and_run("int a;int y;a = 10; a = a * a; y = a / 20 - 1; y")
-        )
+        let ans = compile_and_run("int a;int y;a = 10; a = a * a; y = a / 20 - 1; y").unwrap();
+        assert_eq!(ans, 4);
     }
 }
