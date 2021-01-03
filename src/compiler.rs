@@ -126,14 +126,6 @@ fn ast_to_ir(ast: &AST, symbol_table: &mut HashMap<String, Type>) -> Vec<IR> {
             v
         }
 
-        AST::GetGlobal(name) => vec![IR::GetGlobal(name.to_owned())],
-
-        AST::AssignGlobal(name, expr) => {
-            let mut c = ast_to_ir(expr, symbol_table);
-            c.push(IR::SetGlobal(name.to_owned()));
-            c
-        }
-
         AST::Many(v) => {
             v.iter()
                 .map(|t| ast_to_ir(t, symbol_table))
@@ -144,10 +136,20 @@ fn ast_to_ir(ast: &AST, symbol_table: &mut HashMap<String, Type>) -> Vec<IR> {
                 })
         }
 
+        AST::GetGlobal(name) => vec![IR::GetGlobal(name.to_owned())],
+
+        AST::AssignGlobal(name, expr) => {
+            let mut c = ast_to_ir(expr, symbol_table);
+            c.push(IR::SetGlobal(name.to_owned()));
+            c
+        }
+
         AST::DeclareGlobal(name, t) => {
             symbol_table.insert(name.to_owned(), t.to_owned());
             Vec::new()
         }
+
+        AST::Block(v) => todo!("Implement block!"),
     }
 }
 

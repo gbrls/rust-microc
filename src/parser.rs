@@ -188,11 +188,9 @@ pub fn parse(input: &str) -> AST {
     for l in input.lines() {
         if !l.starts_with("//") && !l.is_empty() {
             ninput.push_str(l);
-            //ninput.push(';');
         }
     }
 
-    //ninput = ninput.trim_end_matches(';').to_string();
     red_ln!("new input: {}", ninput);
 
     let (_, ans) = program(ninput.as_str()).unwrap();

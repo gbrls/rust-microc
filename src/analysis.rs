@@ -49,6 +49,8 @@ pub fn vars(ast: &AST, symbols: &HashMap<String, Type>) -> Result<(), Compilatio
                 Err(CompilationError::VariableNotDeclared(name.to_owned()))
             }
         }
+
+        Block(v) => vars(&Many(v.to_owned()), symbols),
     }
 }
 
@@ -91,8 +93,10 @@ pub fn types(ast: &AST, symbols: &HashMap<String, Type>) -> Result<Option<Type>,
             Ok(None)
         }
 
+        Block(v) => types(&Many(v.to_owned()), symbols),
+
         DeclareGlobal(_, _) => Ok(None),
-        GetGlobal(name) => Ok(Some(*symbols.get(name).unwrap())),
+        GetGlobal(name) => Ok(Some(*symbols.get(name).unwrap())), // this unwrap will never fail if we check it in a previous pass, and we did so.
         AssignGlobal(name, e) => {
             let a = *symbols.get(name).unwrap();
             let b = types(e, symbols)?;

@@ -14,6 +14,7 @@ pub enum AST {
     // Executes multiple expressions and returns the value of the last.
     //
     Many(Vec<AST>),
+    Block(Vec<AST>),
 }
 
 impl AST {
@@ -44,6 +45,16 @@ impl fmt::Display for Type {
         match self {
             Type::INT => write!(f, "int"),
             Type::BOOL => write!(f, "bool"),
+        }
+    }
+}
+
+// We use this trait to get the size of each type in bytes
+impl Into<u32> for Type {
+    fn into(self) -> u32 {
+        match &self {
+            Type::INT => 4,
+            Type::BOOL => 1,
         }
     }
 }
