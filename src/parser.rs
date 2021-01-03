@@ -61,7 +61,18 @@ fn program(i: &str) -> IResult<&str, AST> {
 
 fn statement(i: &str) -> IResult<&str, AST> {
     //TODO: maybe remove expression statements?
-    alt((declare, assign, expr_stmt))(i)
+    alt((block, declare, assign, expr_stmt))(i)
+}
+
+fn block(i: &str) -> IResult<&str, AST> {
+    map(
+        delimited(
+            preceded(complete(ignore_ws), char('{')),
+            many0(statement),
+            preceded(complete(ignore_ws), char('}')),
+        ),
+        AST::Block,
+    )(i)
 }
 
 fn expr_stmt(i: &str) -> IResult<&str, AST> {
@@ -213,6 +224,7 @@ mod tests {
         println!("{:?}", program("1;4;3;"));
 
         println!("{:?}", program("bool a; int b; b = 10; b;"));
+        println!("{:?}", program("{bool a; {int b; {b = 10;}} b;}"));
     }
 
     fn test_newline(i: &str) -> IResult<&str, Vec<AST>> {
@@ -233,6 +245,11 @@ mod tests {
     #[test]
     fn test_expr_stmt() {
         println!("{:?}", expr_stmt("1 * 3 + 4 / (4 - 3);"));
+    }
+
+    #[test]
+    fn test_block() {
+        println!("{:?}", block("{int a; a = 10; bool b;}"));
     }
 
     #[test]

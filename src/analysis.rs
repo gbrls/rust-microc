@@ -12,48 +12,6 @@ impl std::fmt::Display for CompilationError {
     }
 }
 
-pub fn vars(ast: &AST, symbols: &HashMap<String, Type>) -> Result<(), CompilationError> {
-    use AST::*;
-
-    let eval_branch = |a, b| -> Result<(), CompilationError> {
-        let _ = vars(a, symbols)?;
-        let _ = vars(b, symbols)?;
-
-        Ok(())
-    };
-
-    match ast {
-        Number(_) => Ok(()),
-        Add(a, b) => eval_branch(a, b),
-        Sub(a, b) => eval_branch(a, b),
-        Mul(a, b) => eval_branch(a, b),
-        Div(a, b) => eval_branch(a, b),
-        Many(v) => {
-            for e in v {
-                let _ = vars(e, symbols)?;
-            }
-            Ok(())
-        }
-        DeclareGlobal(_, _) => Ok(()),
-        AssignGlobal(name, e) => {
-            if symbols.contains_key(name) {
-                vars(e, symbols)
-            } else {
-                Err(CompilationError::VariableNotDeclared(name.to_owned()))
-            }
-        }
-        GetGlobal(name) => {
-            if symbols.contains_key(name) {
-                Ok(())
-            } else {
-                Err(CompilationError::VariableNotDeclared(name.to_owned()))
-            }
-        }
-
-        Block(v) => vars(&Many(v.to_owned()), symbols),
-    }
-}
-
 pub fn types(ast: &AST, symbols: &HashMap<String, Type>) -> Result<Option<Type>, CompilationError> {
     use CompilationError::*;
     use Type::*;
@@ -95,10 +53,16 @@ pub fn types(ast: &AST, symbols: &HashMap<String, Type>) -> Result<Option<Type>,
 
         Block(v) => types(&Many(v.to_owned()), symbols),
 
+        //TODO: maybe forbid global redeclatation
         DeclareGlobal(_, _) => Ok(None),
-        GetGlobal(name) => Ok(Some(*symbols.get(name).unwrap())), // this unwrap will never fail if we check it in a previous pass, and we did so.
+
+        GetGlobal(name) => match symbols.get(name) {
+            Some(t) => Ok(Some(t.to_owned())),
+            None => Err(VariableNotDeclared(name.to_owned())),
+        },
         AssignGlobal(name, e) => {
-            let a = *symbols.get(name).unwrap();
+            let err = VariableNotDeclared(name.to_owned());
+            let a = *symbols.get(name).ok_or(err)?;
             let b = types(e, symbols)?;
 
             match b {

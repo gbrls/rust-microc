@@ -7,9 +7,8 @@ int 0x80     ; make system call
 
 section .data
 
+b dd 0
 a dd 0
-b db 0
-c dd 0
 
 section .text
 
@@ -19,13 +18,13 @@ mov ax, 10
 push ax
 pop ax
 mov [a], al
-mov ax, 2
+mov ax, 5
 push ax
 pop ax
-mov [c], al
+mov [b], al
 mov al, [a]
 push ax
-mov al, [c]
+mov al, [b]
 push ax
 pop bx
 pop ax

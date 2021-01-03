@@ -63,7 +63,7 @@ pub fn compile(ast: &AST) -> Result<String, analysis::CompilationError> {
 
     let vec = ast_to_ir(ast, &mut sym_tabl);
 
-    let _ = analysis::vars(ast, &sym_tabl)?;
+    //let _ = analysis::vars(ast, &sym_tabl)?;
     let _ = analysis::types(ast, &sym_tabl)?;
 
     red_ln!("Symbol table: {:?}", sym_tabl);
@@ -149,7 +149,16 @@ fn ast_to_ir(ast: &AST, symbol_table: &mut HashMap<String, Type>) -> Vec<IR> {
             Vec::new()
         }
 
-        AST::Block(v) => todo!("Implement block!"),
+        AST::Block(v) => {
+            // TODO: push variables
+
+            let mut nv = Vec::new();
+            nv.extend(ast_to_ir(&AST::Many(v.to_owned()), symbol_table));
+
+            // TODO: pop variables
+
+            nv
+        }
     }
 }
 
