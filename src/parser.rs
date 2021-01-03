@@ -12,16 +12,9 @@ use nom::{
 use std::str::FromStr;
 
 named!(ignore_ws<&str, &str>, take_while!(|c: char| c.is_whitespace() || c == '\n'));
-// This is more "idiomatic nom", does the same as the previous and then converts the input to i32
 named!(number_i32<&str, i32>, map!(digit1, |i| i32::from_str(i).unwrap()));
 named!(number<&str, i32>, preceded!(complete!(ignore_ws), number_i32));
 
-//named!(symbol<&str, &str>,
-//    preceded!(
-//        complete!(ignore_ws),
-//        take_while1!(|c: char| c.is_alphabetic())
-//    )
-//);
 fn symbol(i: &str) -> IResult<&str, &str> {
     preceded(complete(ignore_ws), alpha1)(i)
 }
@@ -45,72 +38,53 @@ fn ptype(i: &str) -> IResult<&str, Type> {
     })(i)
 }
 
-// <program> ::= <statement> (';'|'\n' <statement>)*
-// <statement> ::= assignStmt | (todo)
-// <assign_stmt> ::= SYMBOL '=' <expression> ';'
-// <expression> ::= <term>
-// <term> ::= <factor> (('+' | '-') <factor>)*
-// <factor> ::= <primary> (('*' | '/') <primary>)*
-// <primary> ::= NUMBER | ( <term> )
+/*
+GRAMMAR (may be outdated)
+
+<program> ::= <statement>*
+<statement> ::= <assignStmt> | <exprStmt> | <varDecl>
+<assignStmt> ::= SYMBOL = <expression> ;
+<varDecl> ::= <type> SYMBOL ;
+
+<type> ::= "int" | "bool"
+
+<expression> ::= <term>
+<term> ::= <factor> (('+' | '-') <factor>)*
+<factor> ::= <primary> (('*' | '/') <primary>)*
+<primary> ::= NUMBER | SYMBOL | ( <term> )
+
+*/
 
 fn program(i: &str) -> IResult<&str, AST> {
-    map(
-        tuple((
-            statement,
-            fold_many0(
-                preceded(preceded(complete(ignore_ws), delim), statement),
-                Vec::new(),
-                |acc, new| {
-                    let mut v = Vec::new();
-                    v.extend(acc);
-                    v.push(new);
-                    v
-                },
-            ),
-        )),
-        |(first, rest)| {
-            let mut v = vec![first];
-            v.extend(rest);
-            AST::Many(v)
-        },
-    )(i)
-}
-
-fn program_new(i: &str) -> IResult<&str, AST> {
-    map(
-        tuple((
-            statement,
-            many1(preceded(
-                preceded(complete(ignore_ws), alt((newline, char(';')))),
-                statement,
-            )),
-        )),
-        |(first, rest)| {
-            let mut v = Vec::new();
-            v.push(first);
-
-            v.extend(rest);
-
-            AST::Many(v)
-        },
-    )(i)
+    map(many1(statement), AST::Many)(i)
 }
 
 fn statement(i: &str) -> IResult<&str, AST> {
     //TODO: maybe remove expression statements?
-    alt((complete(declare), assign, expr))(i)
+    alt((declare, assign, expr_stmt))(i)
+}
+
+fn expr_stmt(i: &str) -> IResult<&str, AST> {
+    terminated(expr, preceded(ignore_ws, char(';')))(i)
 }
 
 fn declare(i: &str) -> IResult<&str, AST> {
-    map(tuple((preceded(ignore_ws, ptype), symbol)), |(t, name)| {
-        AST::DeclareGlobal(name.to_string(), t)
-    })(i)
+    terminated(
+        complete(map(
+            tuple((preceded(ignore_ws, ptype), symbol)),
+            |(t, name)| AST::DeclareGlobal(name.to_string(), t),
+        )),
+        preceded(complete(ignore_ws), char(';')),
+    )(i)
 }
 
 fn assign(i: &str) -> IResult<&str, AST> {
-    map(
-        tuple((symbol, preceded(complete(ignore_ws), char('=')), expr)),
-        |(name, _, e)| AST::AssignGlobal(name.to_owned(), Box::new(e)),
+    terminated(
+        map(
+            tuple((symbol, preceded(complete(ignore_ws), char('=')), expr)),
+            |(name, _, e)| AST::AssignGlobal(name.to_owned(), Box::new(e)),
+        ),
+        preceded(complete(ignore_ws), char(';')),
     )(i)
 }
 
@@ -227,20 +201,18 @@ mod tests {
 
     #[test]
     fn test_assign() {
-        println!("{:?}", assign("foo  =    1 + 2 + 3"));
-        println!("{:?}", assign("a=b"));
+        println!("{:?}", assign("foo  =    1 + 2 + 3;"));
+        println!("{:?}", assign("a=b;"));
     }
 
     #[test]
     fn test_program() {
-        println!("{:?}", program(" a=1  ;   b = a * 2"));
+        println!("{:?}", program(" a=1  ;   b = a * 2;"));
         println!("{:?}", program("1"));
-        println!("{:?}", program("((  1+2  ) * 3+2  )    *4"));
-        println!("{:?}", program("1;4;3"));
-        //println!("{:?}", program_new("1 ; 4 ; 3  "));
-        //println!("{:?}", program_new("1 ; 4 ;  16"));
+        println!("{:?}", program("((  1+2  ) * 3+2  )    *4;"));
+        println!("{:?}", program("1;4;3;"));
 
-        println!("{:?}", program("bool a; int b; b = 10; b"));
+        println!("{:?}", program("bool a; int b; b = 10; b;"));
     }
 
     fn test_newline(i: &str) -> IResult<&str, Vec<AST>> {
@@ -254,8 +226,13 @@ mod tests {
 
     #[test]
     fn test_decl() {
-        println!("{:?}", declare("bool a"));
-        println!("{:?}", declare("int b"));
+        println!("{:?}", declare("bool a;"));
+        println!("{:?}", declare("int b;"));
+    }
+
+    #[test]
+    fn test_expr_stmt() {
+        println!("{:?}", expr_stmt("1 * 3 + 4 / (4 - 3);"));
     }
 
     #[test]

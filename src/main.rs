@@ -63,16 +63,16 @@ mod tests {
     // Here we test if the evaluated AST has the same output as the compiled program.
     #[test]
     fn test_eval_and_compile() {
-        assert!(cmp_eval_compile("1 + 2"));
-        assert!(cmp_eval_compile("2 * 2 + 3"));
-        assert!(cmp_eval_compile("2/2+3"));
-        assert!(cmp_eval_compile("((  1+2  ) * 3+4  )    *4"));
-        assert!(cmp_eval_compile("(6-1)/2"));
+        assert!(cmp_eval_compile("1 + 2;"));
+        assert!(cmp_eval_compile("2 * 2 + 3;"));
+        assert!(cmp_eval_compile("2/2+3;"));
+        assert!(cmp_eval_compile("((  1+2  ) * 3+4  )    *4;"));
+        assert!(cmp_eval_compile("(6-1)/2;"));
     }
 
     #[test]
     fn test_globals() {
-        let ans = compile_and_run("int a;int y;a = 10; a = a * a; y = a / 20 - 1; y").unwrap();
+        let ans = compile_and_run("int a;int y;a = 10; a = a * a; y = a / 20 - 1; y;").unwrap();
         assert_eq!(ans, 4);
     }
 }

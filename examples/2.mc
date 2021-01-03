@@ -6,6 +6,7 @@ a = 10;
 c = 2;
 
 a = a - c;
+a;
 
 // this will fail in compile time
 // a = b + 1;
