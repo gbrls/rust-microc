@@ -7,60 +7,34 @@ int 0x80     ; make system call
 
 section .data
 
-b dd 0
+b db 0
+c dd 0
+a dd 0
 
 section .text
 
 _start:
 
 mov rbp, rsp
+mov ax, 10
+push ax
+pop ax
+mov [a], ax
 mov ax, 2
 push ax
 pop ax
-mov [b], ax
-sub rsp, 4
-mov ax, 42
+mov [c], ax
+mov ax, [a]
 push ax
-pop ax
-mov [rbp-4], ax
-sub rsp, 4
-mov ax, 1
-push ax
-pop ax
-mov [rbp-8], ax
-mov ax, [rbp-4]
-push ax
-mov ax, [rbp-8]
+mov ax, [c]
 push ax
 pop bx
 pop ax
 sub ax, bx
 push ax
 pop ax
-mov [rbp-4], ax
-mov ax, [rbp-4]
-push ax
-mov ax, 10
-push ax
-mov ax, [b]
-push ax
-pop bx
-pop ax
-mul bx
-push ax
-pop bx
-pop ax
-sub ax, bx
-push ax
-pop ax
-mov [rbp-4], ax
-add rsp, 4
-mov ax, [rbp-4]
-push ax
-pop ax
-mov [b], ax
-add rsp, 4
-mov ax, [b]
+mov [a], ax
+mov ax, [a]
 push ax
 
 EXIT

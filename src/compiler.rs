@@ -1,6 +1,7 @@
 //x86-64 nasm reference https://www.csee.umbc.edu/portal/help/nasm/sample_64.shtml
 
 use crate::analysis;
+use crate::analysis::CompilationError;
 use crate::ast::{Type, AST};
 use crate::parser;
 use std::collections::HashMap;
@@ -49,11 +50,11 @@ impl Stack {
         self.size += of;
     }
 
-    fn find(&self, var: &str) -> Option<u32> {
+    fn find(&self, var: &str) -> Option<(u32, Type)> {
         let mut sz = 0;
         for (name, _, t) in self.data.iter().rev() {
             if name == var {
-                return Some(self.size - sz);
+                return Some(((self.size - sz), *t));
             } else {
                 let s: u32 = (*t).into();
                 sz += s;
@@ -126,39 +127,80 @@ impl Compiler {
         self.ir.push(op)
     }
 
-    //TODO: do some static analysis here on the local variables, it is missing.
-    fn ast_to_ir(&mut self, ast: &AST) {
-        let mut bin = |a, b, op| {
-            self.ast_to_ir(a);
-            self.ast_to_ir(b);
+    fn find_type(&self, name: &str) -> Option<Type> {
+        match self.stack.find(name) {
+            Some((_, t)) => Some(t),
+            None => match self.symbols.get(name) {
+                Some(v) => Some(*v),
+                None => None,
+            },
+        }
+    }
 
-            self.emit(op);
+    //TODO: do some static analysis here on the local variables, it is missing.
+
+    fn ast_to_ir(&mut self, ast: &AST) -> Result<Option<Type>, CompilationError> {
+        use Type::*;
+        let mut bin_int = |a, b, op| -> Result<Option<Type>, CompilationError> {
+            let a = self.ast_to_ir(a)?;
+            let b = self.ast_to_ir(b)?;
+
+            match (a, b) {
+                (Some(Type::INT), Some(Type::INT)) => {
+                    self.emit(op);
+                    Ok(Some(INT))
+                }
+                _ => Err(CompilationError::IncompatibleTypes),
+            }
         };
 
         use IR::*;
         match ast {
-            AST::Number(x) => self.emit(PUSH(x.to_owned())),
-            AST::Add(a, b) => bin(a, b, ADD),
-            AST::Sub(a, b) => bin(a, b, SUB),
-            AST::Mul(a, b) => bin(a, b, MUL),
-            AST::Div(a, b) => bin(a, b, DIV),
+            AST::Number(x) => {
+                self.emit(PUSH(x.to_owned()));
+                Ok(Some(Type::INT))
+            }
+            AST::Add(a, b) => bin_int(a, b, ADD),
+            AST::Sub(a, b) => bin_int(a, b, SUB),
+            AST::Mul(a, b) => bin_int(a, b, MUL),
+            AST::Div(a, b) => bin_int(a, b, DIV),
 
             AST::Many(v) => {
                 for e in v {
-                    self.ast_to_ir(e);
+                    self.ast_to_ir(e)?;
+                }
+                Ok(None)
+            }
+
+            AST::GetVar(name) => {
+                match self.stack.find(name) {
+                    Some((off, _)) => self.emit(IR::GetLocal(off)),
+                    None => self.emit(IR::GetGlobal(name.to_owned())),
+                }
+                cyan_ln!("Looking var {} = {:?}", name, self.find_type(name));
+                match self.find_type(name) {
+                    Some(t) => Ok(Some(t)),
+                    None => Err(CompilationError::VariableNotDeclared(name.to_owned())),
                 }
             }
 
-            AST::GetVar(name) => match self.stack.find(name) {
-                Some(off) => self.emit(IR::GetLocal(off)),
-                None => self.emit(IR::GetGlobal(name.to_owned())),
-            },
-
             AST::AssignVar(name, expr) => {
-                self.ast_to_ir(expr);
+                let e_type = self.ast_to_ir(expr)?;
                 match self.stack.find(name) {
-                    Some(off) => self.emit(IR::SetLocal(off)),
+                    Some((off, _)) => self.emit(IR::SetLocal(off)),
                     None => self.emit(IR::SetGlobal(name.to_owned())),
+                }
+
+                match (self.find_type(name), e_type) {
+                    (Some(a), Some(b)) => {
+                        if a == b {
+                            Ok(Some(a))
+                        } else {
+                            Err(CompilationError::IncompatibleTypes)
+                        }
+                    }
+                    (None, _) => Err(CompilationError::VariableNotDeclared(name.to_owned())),
+                    (Some(_), None) => Err(CompilationError::IncompatibleTypes),
                 }
             }
 
@@ -170,16 +212,19 @@ impl Compiler {
                 } else {
                     self.symbols.insert(name.to_owned(), *typ);
                 }
+                Ok(None)
             }
 
             AST::Block(v) => {
                 self.stack.scope += 1;
 
-                self.ast_to_ir(&AST::Many(v.to_owned()));
+                self.ast_to_ir(&AST::Many(v.to_owned()))?;
 
                 let sz = self.stack.pop();
                 self.emit(IR::Shrink(sz));
                 self.stack.scope -= 1;
+
+                Ok(None)
             }
         }
     }
@@ -213,10 +258,8 @@ pub fn ir_to_asm(is: &[IR], symbol_table: &HashMap<String, Type>) -> String {
 
 pub fn compile(ast: &AST) -> Result<String, analysis::CompilationError> {
     let mut compiler = Compiler::new();
-    compiler.ast_to_ir(ast);
+    compiler.ast_to_ir(ast)?;
     let vec = compiler.ir;
-
-    //let _ = analysis::types(ast, &compiler.symbols)?;
 
     red_ln!("Symbol table: {:?}", compiler.symbols);
 
