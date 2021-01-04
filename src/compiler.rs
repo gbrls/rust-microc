@@ -5,6 +5,64 @@ use crate::ast::{Type, AST};
 use crate::parser;
 use std::collections::HashMap;
 
+#[derive(Debug)]
+struct Stack {
+    // name, scope, type
+    data: Vec<(String, u32, Type)>,
+    pub scope: u32,
+    size: u32,
+}
+
+impl Stack {
+    fn new() -> Stack {
+        Stack {
+            data: Vec::new(),
+            scope: 0,
+            size: 0,
+        }
+    }
+
+    // This function removes all the variables declared in the current scope and
+    // returns how many bytes should be removed from the stack.
+    fn pop(&mut self) -> u32 {
+        let mut offset = 0;
+        while !self.data.is_empty() {
+            let (_, s, t) = self.data.last().unwrap();
+            if *s < self.scope {
+                break;
+            } else {
+                let sz: u32 = (*t).into();
+                offset += sz;
+                self.data.pop();
+            }
+        }
+
+        self.size -= offset;
+
+        offset
+    }
+
+    fn push(&mut self, name: String, typ: Type) {
+        self.data.push((name, self.scope, typ));
+
+        let of: u32 = typ.into();
+        self.size += of;
+    }
+
+    fn find(&self, var: &str) -> Option<u32> {
+        let mut sz = 0;
+        for (name, _, t) in self.data.iter().rev() {
+            if name == var {
+                return Some(self.size - sz);
+            } else {
+                let s: u32 = (*t).into();
+                sz += s;
+            }
+        }
+        None
+    }
+}
+
 /// The idea behind this enum is to be our IR.
 /// Each instruction pops it's inputs from the stack and then pops them
 /// back.
@@ -15,20 +73,114 @@ pub enum IR {
     SUB,
     MUL,
     DIV,
+
     GetGlobal(String),
     SetGlobal(String),
+
+    GetLocal(u32),
+    SetLocal(u32),
+
+    // Stack operations
+    Shrink(u32),
+    Grow(u32),
 }
 
 impl IR {
     fn emit(&self, _symbol_table: &HashMap<String, Type>) -> String {
         match self {
             IR::PUSH(x) => format!("mov ax, {}\npush ax", x),
+
             IR::ADD => "pop bx\npop ax\nadd ax, bx\npush ax".to_string(),
             IR::SUB => "pop bx\npop ax\nsub ax, bx\npush ax".to_string(),
             IR::MUL => "pop bx\npop ax\nmul bx\npush ax".to_string(),
             IR::DIV => "pop bx\npop ax\ndiv bx\npush ax".to_string(),
-            IR::GetGlobal(v) => format!("mov al, [{}]\npush ax", v),
-            IR::SetGlobal(v) => format!("pop ax\nmov [{}], al", v),
+
+            IR::GetGlobal(v) => format!("mov ax, [{}]\npush ax", v),
+            IR::SetGlobal(v) => format!("pop ax\nmov [{}], ax", v),
+
+            IR::GetLocal(v) => format!("mov ax, [rbp-{}]\npush ax", v),
+            IR::SetLocal(v) => format!("pop ax\nmov [rbp-{}], ax", v),
+
+            IR::Grow(sz) => format!("sub rsp, {}", sz),
+            IR::Shrink(sz) => format!("add rsp, {}", sz),
+        }
+    }
+}
+
+struct Compiler {
+    symbols: HashMap<String, Type>,
+    stack: Stack,
+    ir: Vec<IR>,
+}
+
+impl Compiler {
+    fn new() -> Compiler {
+        Compiler {
+            symbols: HashMap::new(),
+            stack: Stack::new(),
+            ir: Vec::new(),
+        }
+    }
+
+    fn emit(&mut self, op: IR) {
+        self.ir.push(op)
+    }
+
+    //TODO: do some static analysis here on the local variables, it is missing.
+    fn ast_to_ir(&mut self, ast: &AST) {
+        let mut bin = |a, b, op| {
+            self.ast_to_ir(a);
+            self.ast_to_ir(b);
+
+            self.emit(op);
+        };
+
+        use IR::*;
+        match ast {
+            AST::Number(x) => self.emit(PUSH(x.to_owned())),
+            AST::Add(a, b) => bin(a, b, ADD),
+            AST::Sub(a, b) => bin(a, b, SUB),
+            AST::Mul(a, b) => bin(a, b, MUL),
+            AST::Div(a, b) => bin(a, b, DIV),
+
+            AST::Many(v) => {
+                for e in v {
+                    self.ast_to_ir(e);
+                }
+            }
+
+            AST::GetVar(name) => match self.stack.find(name) {
+                Some(off) => self.emit(IR::GetLocal(off)),
+                None => self.emit(IR::GetGlobal(name.to_owned())),
+            },
+
+            AST::AssignVar(name, expr) => {
+                self.ast_to_ir(expr);
+                match self.stack.find(name) {
+                    Some(off) => self.emit(IR::SetLocal(off)),
+                    None => self.emit(IR::SetGlobal(name.to_owned())),
+                }
+            }
+
+            AST::DeclareVar(name, typ) => {
+                if self.stack.scope > 0 {
+                    self.stack.push(name.to_owned(), *typ);
+                    let sz: u32 = (*typ).into();
+                    self.emit(IR::Grow(sz));
+                } else {
+                    self.symbols.insert(name.to_owned(), *typ);
+                }
+            }
+
+            AST::Block(v) => {
+                self.stack.scope += 1;
+
+                self.ast_to_ir(&AST::Many(v.to_owned()));
+
+                let sz = self.stack.pop();
+                self.emit(IR::Shrink(sz));
+                self.stack.scope -= 1;
+            }
         }
     }
 }
@@ -49,6 +201,7 @@ pub fn ir_to_asm(is: &[IR], symbol_table: &HashMap<String, Type>) -> String {
     }
     s.push_str("\nsection .text\n");
     s.push_str("\n_start:\n\n");
+    s.push_str("mov rbp, rsp\n");
 
     for i in is {
         s.push_str(i.emit(symbol_table).as_str());
@@ -59,107 +212,15 @@ pub fn ir_to_asm(is: &[IR], symbol_table: &HashMap<String, Type>) -> String {
 }
 
 pub fn compile(ast: &AST) -> Result<String, analysis::CompilationError> {
-    let mut sym_tabl = HashMap::new();
+    let mut compiler = Compiler::new();
+    compiler.ast_to_ir(ast);
+    let vec = compiler.ir;
 
-    let vec = ast_to_ir(ast, &mut sym_tabl);
+    //let _ = analysis::types(ast, &compiler.symbols)?;
 
-    //let _ = analysis::vars(ast, &sym_tabl)?;
-    let _ = analysis::types(ast, &sym_tabl)?;
+    red_ln!("Symbol table: {:?}", compiler.symbols);
 
-    red_ln!("Symbol table: {:?}", sym_tabl);
-
-    Ok(ir_to_asm(vec.as_ref(), &sym_tabl))
-}
-
-//TODO: Some nodes on the tree don't need a specific instruction,
-// e.g. DeclareGlobal
-fn ast_to_ir(ast: &AST, symbol_table: &mut HashMap<String, Type>) -> Vec<IR> {
-    use IR::*;
-    match ast {
-        AST::Number(x) => vec![PUSH(x.to_owned())],
-        AST::Add(a, b) => {
-            let l = ast_to_ir(a, symbol_table);
-            let r = ast_to_ir(b, symbol_table);
-
-            let mut v: Vec<IR> = Vec::new();
-
-            v.extend(l);
-            v.extend(r);
-            v.push(ADD);
-
-            v
-        }
-        AST::Sub(a, b) => {
-            let l = ast_to_ir(a, symbol_table);
-            let r = ast_to_ir(b, symbol_table);
-
-            let mut v: Vec<IR> = Vec::new();
-
-            v.extend(l);
-            v.extend(r);
-            v.push(SUB);
-
-            v
-        }
-        AST::Mul(a, b) => {
-            let l = ast_to_ir(a, symbol_table);
-            let r = ast_to_ir(b, symbol_table);
-
-            let mut v: Vec<IR> = Vec::new();
-
-            v.extend(l);
-            v.extend(r);
-            v.push(MUL);
-
-            v
-        }
-        AST::Div(a, b) => {
-            let l = ast_to_ir(a, symbol_table);
-            let r = ast_to_ir(b, symbol_table);
-
-            let mut v: Vec<IR> = Vec::new();
-
-            v.extend(l);
-            v.extend(r);
-            v.push(DIV);
-
-            v
-        }
-
-        AST::Many(v) => {
-            v.iter()
-                .map(|t| ast_to_ir(t, symbol_table))
-                .fold(Vec::new(), |acc, new| {
-                    let mut v = acc;
-                    v.extend(new);
-                    v
-                })
-        }
-
-        AST::GetGlobal(name) => vec![IR::GetGlobal(name.to_owned())],
-
-        AST::AssignGlobal(name, expr) => {
-            let mut c = ast_to_ir(expr, symbol_table);
-            c.push(IR::SetGlobal(name.to_owned()));
-            c
-        }
-
-        AST::DeclareGlobal(name, t) => {
-            symbol_table.insert(name.to_owned(), t.to_owned());
-            Vec::new()
-        }
-
-        AST::Block(v) => {
-            // TODO: push variables
-
-            let mut nv = Vec::new();
-            nv.extend(ast_to_ir(&AST::Many(v.to_owned()), symbol_table));
-
-            // TODO: pop variables
-
-            nv
-        }
-    }
+    Ok(ir_to_asm(vec.as_ref(), &compiler.symbols))
 }
 
 #[cfg(test)]
@@ -169,14 +230,15 @@ mod tests {
 
     fn print_expr(expr: &str) {
         let ast = parser::parse(expr);
-        let mut symbol_table = HashMap::new();
-        let is = ast_to_ir(&ast, &mut symbol_table);
+        let mut compiler = Compiler::new();
+        compiler.ast_to_ir(&ast);
+        let is = compiler.ir;
 
         red_ln!("{:?} => {:?}", ast, is);
         red_ln!("ast_to_ird: ");
 
         for i in is {
-            red_ln!("{}", i.emit(&symbol_table));
+            red_ln!("{}", i.emit(&compiler.symbols));
         }
     }
 

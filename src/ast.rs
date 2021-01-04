@@ -7,9 +7,9 @@ pub enum AST {
     Mul(Box<AST>, Box<AST>),
     Div(Box<AST>, Box<AST>),
 
-    AssignGlobal(String, Box<AST>),
-    GetGlobal(String),
-    DeclareGlobal(String, Type),
+    AssignVar(String, Box<AST>),
+    GetVar(String),
+    DeclareVar(String, Type),
 
     // Executes multiple expressions and returns the value of the last.
     //

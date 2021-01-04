@@ -54,13 +54,13 @@ pub fn types(ast: &AST, symbols: &HashMap<String, Type>) -> Result<Option<Type>,
         Block(v) => types(&Many(v.to_owned()), symbols),
 
         //TODO: maybe forbid global redeclatation
-        DeclareGlobal(_, _) => Ok(None),
+        DeclareVar(_, _) => Ok(None),
 
-        GetGlobal(name) => match symbols.get(name) {
+        GetVar(name) => match symbols.get(name) {
             Some(t) => Ok(Some(t.to_owned())),
             None => Err(VariableNotDeclared(name.to_owned())),
         },
-        AssignGlobal(name, e) => {
+        AssignVar(name, e) => {
             let err = VariableNotDeclared(name.to_owned());
             let a = *symbols.get(name).ok_or(err)?;
             let b = types(e, symbols)?;

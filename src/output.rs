@@ -61,17 +61,28 @@ fn link(fname: &str) {
 fn execute(fname: &str) -> i32 {
     cyan_ln!("Trying to execute {}", fname);
 
-    let output = Command::new(fname)
-        .status()
-        .unwrap_or_else(|e| panic!("Falied to execute {}", e))
-        .code()
-        .unwrap();
+    let mut code = -1;
 
-    blue_ln!("Executed {} with output {:?}", fname, output);
+    let mut cmd = Command::new(fname);
+
+    match cmd
+        .status()
+        .unwrap_or_else(|e| panic!("Can't open status {}", e))
+        .code()
+    {
+        Some(c) => {
+            blue_ln!("Executed {} with output {:?}", fname, c);
+            code = c
+        }
+        None => {
+            let out = cmd.output().unwrap();
+            yellow_ln!("No code: {:?}", out);
+        }
+    }
 
     //delete(fname);
 
-    output
+    code
 }
 
 fn delete(fname: &str) {

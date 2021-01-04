@@ -83,7 +83,7 @@ fn declare(i: &str) -> IResult<&str, AST> {
     terminated(
         complete(map(
             tuple((preceded(ignore_ws, ptype), symbol)),
-            |(t, name)| AST::DeclareGlobal(name.to_string(), t),
+            |(t, name)| AST::DeclareVar(name.to_string(), t),
         )),
         preceded(complete(ignore_ws), char(';')),
     )(i)
@@ -93,7 +93,7 @@ fn assign(i: &str) -> IResult<&str, AST> {
     terminated(
         map(
             tuple((symbol, preceded(complete(ignore_ws), char('=')), expr)),
-            |(name, _, e)| AST::AssignGlobal(name.to_owned(), Box::new(e)),
+            |(name, _, e)| AST::AssignVar(name.to_owned(), Box::new(e)),
         ),
         preceded(complete(ignore_ws), char(';')),
     )(i)
@@ -105,7 +105,7 @@ named!(assign_old<&str, AST>,
         preceded!(complete!(ignore_ws), char!('=')) >>
         complete!(ignore_ws) >>
         value: expr >>
-        (AST::AssignGlobal(name.to_owned(), Box::new(value)))
+        (AST::AssignVar(name.to_owned(), Box::new(value)))
     )
 );
 
@@ -162,7 +162,7 @@ named!(primary<&str, AST>,
                 term,
                 preceded!(complete!(ignore_ws), char!(')'))
             ) |
-            map!(symbol, |x| AST::GetGlobal(x.to_owned()))
+            map!(symbol, |x| AST::GetVar(x.to_owned()))
         )
     )
 );

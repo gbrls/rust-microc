@@ -1,10 +1,16 @@
+int b;
 {
+    b = 2;
     int a;
-    a = 10;
+    a = 42;
+
     {
-        int b;
-        b = 5;
-        a = a - b;
+        int c;
+        c = 1;
+        a = a - c;
+        a = a - 10 * b;
     }
-    a;
+
+    b = a;
 }
+b;

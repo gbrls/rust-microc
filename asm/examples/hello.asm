@@ -4,7 +4,7 @@
 	.globl	fn
 	.type	fn, @function
 fn:
-	; Resetting the stack
+	;; Resetting the stack
 	push	rbp
 	mov	rbp, rsp
 
