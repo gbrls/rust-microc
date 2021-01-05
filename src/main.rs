@@ -42,8 +42,11 @@ fn compile_and_run(input: &str) -> Result<i32, analysis::CompilationError> {
 
 fn main() -> Result<(), analysis::CompilationError> {
     //exec_file("examples/1.mc");
-    exec_file("examples/2.mc").unwrap();
-    exec_file("examples/3.mc")
+    exec_file("examples/2.mc")?;
+    exec_file("examples/3.mc")?;
+    exec_file("examples/4.mc")?;
+
+    Ok(())
 }
 
 #[cfg(test)]

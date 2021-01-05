@@ -11,17 +11,23 @@ use nom::{
 };
 use std::str::FromStr;
 
-named!(ignore_ws<&str, &str>, take_while!(|c: char| c.is_whitespace() || c == '\n'));
+named!(ignore_ws<&str, &str>, take_while!(|c: char| c.is_whitespace() || c == '\n' || c == '\t'));
 named!(number_i32<&str, i32>, map!(digit1, |i| i32::from_str(i).unwrap()));
 named!(number<&str, i32>, preceded!(complete!(ignore_ws), number_i32));
 
-fn symbol(i: &str) -> IResult<&str, &str> {
-    preceded(complete(ignore_ws), alpha1)(i)
+fn bool_true(i: &str) -> IResult<&str, bool> {
+    map(preceded(complete(ignore_ws), tag("true")), |_| true)(i)
 }
 
-//FIXME: maybe this is a problem
-fn delim(i: &str) -> IResult<&str, Vec<char>> {
-    many1(alt((newline, char(';'))))(i)
+fn bool_false(i: &str) -> IResult<&str, bool> {
+    map(preceded(complete(ignore_ws), tag("false")), |_| false)(i)
+}
+fn bool_fn(i: &str) -> IResult<&str, AST> {
+    map(alt((bool_true, bool_false)), AST::Bool)(i)
+}
+
+fn symbol(i: &str) -> IResult<&str, &str> {
+    preceded(complete(ignore_ws), alpha1)(i)
 }
 
 fn ptype(i: &str) -> IResult<&str, Type> {
@@ -42,16 +48,23 @@ fn ptype(i: &str) -> IResult<&str, Type> {
 GRAMMAR (may be outdated)
 
 <program> ::= <statement>*
-<statement> ::= <assignStmt> | <exprStmt> | <varDecl>
-<assignStmt> ::= SYMBOL = <expression> ;
-<varDecl> ::= <type> SYMBOL ;
 
-<type> ::= "int" | "bool"
+<statement> ::= <block> | <varDecl> | <assignStmt> | <exprStmt>
+
+<block> ::= { <statement>* }
+<varDecl> ::= <type> SYMBOL ;
+<assignStmt> ::= SYMBOL = <expression> ;
+<exprStmt> ::= <expression> ;
+
 
 <expression> ::= <term>
+
 <term> ::= <factor> (('+' | '-') <factor>)*
 <factor> ::= <primary> (('*' | '/') <primary>)*
-<primary> ::= NUMBER | SYMBOL | ( <term> )
+
+<primary> ::= NUMBER | SYMBOL | BOOL | ( <term> )
+
+<type> ::= "int" | "bool"
 
 */
 
@@ -156,6 +169,7 @@ named!(factor<&str, AST>,
 named!(primary<&str, AST>,
     preceded!(complete!(ignore_ws),
         alt!(
+            bool_fn |
             map!(number, |x| AST::Number(x)) |
             delimited!(
                 char!('('),
@@ -178,7 +192,7 @@ pub fn parse(input: &str) -> AST {
 
     red_ln!("new input: {}", ninput);
 
-    let (_, ans) = program(ninput.as_str()).unwrap();
+    let (_rest, ans) = program(ninput.as_str()).unwrap();
     ans
 }
 
@@ -225,6 +239,13 @@ mod tests {
 
         println!("{:?}", program("bool a; int b; b = 10; b;"));
         println!("{:?}", program("{bool a; {int b; {b = 10;}} b;}"));
+
+        println!(
+            "{:?}",
+            program("bool t; {  t = true;    bool b = false;   }t;")
+        );
+
+        println!("{:?}", block(" { t = true;     bool b; } t;"));
     }
 
     fn test_newline(i: &str) -> IResult<&str, Vec<AST>> {
@@ -250,6 +271,12 @@ mod tests {
     #[test]
     fn test_block() {
         println!("{:?}", block("{int a; a = 10; bool b;}"));
+    }
+
+    #[test]
+    fn test_bool() {
+        println!("{:?}", bool_fn(" true"));
+        println!("{:?}", bool_fn("   false;"));
     }
 
     #[test]

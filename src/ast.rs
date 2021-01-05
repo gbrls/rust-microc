@@ -1,6 +1,8 @@
 #[derive(Debug, Clone)]
 pub enum AST {
     Number(i32),
+    Bool(bool),
+
     Add(Box<AST>, Box<AST>),
     Sub(Box<AST>, Box<AST>),
 

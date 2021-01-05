@@ -1,4 +1,5 @@
 //x86-64 nasm reference https://www.csee.umbc.edu/portal/help/nasm/sample_64.shtml
+//TODO: use different registers for different operand sizes
 
 use crate::analysis;
 use crate::analysis::CompilationError;
@@ -78,8 +79,9 @@ pub enum IR {
     GetGlobal(String),
     SetGlobal(String),
 
-    GetLocal(u32),
-    SetLocal(u32),
+    // offset, size
+    GetLocal(u32, u32),
+    SetLocal(u32, u32),
 
     // Stack operations
     Shrink(u32),
@@ -87,20 +89,34 @@ pub enum IR {
 }
 
 impl IR {
-    fn emit(&self, _symbol_table: &HashMap<String, Type>) -> String {
+    fn emit(&self, syms: &HashMap<String, Type>) -> String {
+        let reg = |sz| match sz {
+            1 => "al",
+            2 => "ax",
+            4 => "eax",
+            8 => "rax",
+            _ => panic!("There's no register for {} bits!", sz * 8),
+        };
+
         match self {
             IR::PUSH(x) => format!("mov ax, {}\npush ax", x),
 
-            IR::ADD => "pop bx\npop ax\nadd ax, bx\npush ax".to_string(),
-            IR::SUB => "pop bx\npop ax\nsub ax, bx\npush ax".to_string(),
-            IR::MUL => "pop bx\npop ax\nmul bx\npush ax".to_string(),
-            IR::DIV => "pop bx\npop ax\ndiv bx\npush ax".to_string(),
+            IR::ADD => "pop bx\npop ax\nadd eax, ebx\npush ax".to_string(),
+            IR::SUB => "pop bx\npop ax\nsub eax, ebx\npush ax".to_string(),
+            IR::MUL => "pop bx\npop ax\nmul ebx\npush ax".to_string(),
+            IR::DIV => "pop bx\npop ax\ndiv ebx\npush ax".to_string(),
 
-            IR::GetGlobal(v) => format!("mov ax, [{}]\npush ax", v),
-            IR::SetGlobal(v) => format!("pop ax\nmov [{}], ax", v),
+            IR::GetGlobal(v) => {
+                let sz: u32 = (*syms.get(v).unwrap()).into();
+                format!("mov {}, [{}]\npush ax", reg(sz), v)
+            }
+            IR::SetGlobal(v) => {
+                let sz: u32 = (*syms.get(v).unwrap()).into();
+                format!("pop ax\nmov [{}], {}", v, reg(sz))
+            }
 
-            IR::GetLocal(v) => format!("mov ax, [rbp-{}]\npush ax", v),
-            IR::SetLocal(v) => format!("pop ax\nmov [rbp-{}], ax", v),
+            IR::GetLocal(v, sz) => format!("mov {}, [rbp-{}]\npush ax", reg(*sz), v),
+            IR::SetLocal(v, sz) => format!("pop ax\nmov [rbp-{}], {}", v, reg(*sz)),
 
             IR::Grow(sz) => format!("sub rsp, {}", sz),
             IR::Shrink(sz) => format!("add rsp, {}", sz),
@@ -156,6 +172,12 @@ impl Compiler {
 
         use IR::*;
         match ast {
+            AST::Bool(v) => {
+                let x = if *v { 1 } else { 0 };
+                self.emit(PUSH(x));
+                Ok(Some(Type::BOOL))
+            }
+
             AST::Number(x) => {
                 self.emit(PUSH(x.to_owned()));
                 Ok(Some(Type::INT))
@@ -174,7 +196,7 @@ impl Compiler {
 
             AST::GetVar(name) => {
                 match self.stack.find(name) {
-                    Some((off, _)) => self.emit(IR::GetLocal(off)),
+                    Some((off, t)) => self.emit(IR::GetLocal(off, t.into())),
                     None => self.emit(IR::GetGlobal(name.to_owned())),
                 }
                 cyan_ln!("Looking var {} = {:?}", name, self.find_type(name));
@@ -187,7 +209,7 @@ impl Compiler {
             AST::AssignVar(name, expr) => {
                 let e_type = self.ast_to_ir(expr)?;
                 match self.stack.find(name) {
-                    Some((off, _)) => self.emit(IR::SetLocal(off)),
+                    Some((off, t)) => self.emit(IR::SetLocal(off, t.into())),
                     None => self.emit(IR::SetGlobal(name.to_owned())),
                 }
 
@@ -226,6 +248,7 @@ impl Compiler {
 
                 Ok(None)
             }
+            x => todo!("{:?}", x),
         }
     }
 }

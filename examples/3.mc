@@ -9,12 +9,14 @@ int b;
         c = 1;
         a = a - c;
         a = a - 10 * b;
-
-        bool d;
-
-        a = a - d;
     }
 
     b = a;
+
+    {
+        int a;
+        a = 1;
+        b = b - a;
+    }
 }
 b;
