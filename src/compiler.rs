@@ -86,6 +86,11 @@ pub enum IR {
     // Stack operations
     Shrink(u32),
     Grow(u32),
+
+    // Continionals
+    Label(u32),
+    JmpIfTrue(u32),
+    JmpIfFalse(u32),
 }
 
 impl IR {
@@ -120,6 +125,10 @@ impl IR {
 
             IR::Grow(sz) => format!("sub rsp, {}", sz),
             IR::Shrink(sz) => format!("add rsp, {}", sz),
+
+            IR::Label(id) => format!(".L{}:", id),
+            IR::JmpIfTrue(label) => format!("test ax, ax\njne .L{}", label),
+            IR::JmpIfFalse(label) => format!("test ax, ax\nje .L{}", label),
         }
     }
 }
@@ -128,6 +137,7 @@ struct Compiler {
     symbols: HashMap<String, Type>,
     stack: Stack,
     ir: Vec<IR>,
+    labels: u32,
 }
 
 impl Compiler {
@@ -136,11 +146,28 @@ impl Compiler {
             symbols: HashMap::new(),
             stack: Stack::new(),
             ir: Vec::new(),
+            labels: 0,
         }
     }
 
     fn emit(&mut self, op: IR) {
         self.ir.push(op)
+    }
+
+    fn emit_label(&mut self) -> u32 {
+        self.emit(IR::Label(self.labels));
+        self.labels += 1;
+
+        // returns the id of the newly created label
+        self.labels - 1
+    }
+
+    fn next_label(&self) -> u32 {
+        self.labels
+    }
+
+    fn last_label(&self) -> u32 {
+        self.labels - 1
     }
 
     fn find_type(&self, name: &str) -> Option<Type> {
@@ -248,7 +275,28 @@ impl Compiler {
 
                 Ok(None)
             }
-            x => todo!("{:?}", x),
+
+            /* This piece of code is a bit tricky. First we emit the expression and use AX to check
+            it's result. Then we emit a placeholder JMP instruction, then we emit the IF's body,
+            then we emit the label that marks the end of the IF's body and change the placeholder to jump to it.
+            */
+            AST::If(condition, block) => {
+                self.ast_to_ir(condition)?;
+
+                // Placeholder (This label is not valid!)
+                self.emit(IR::JmpIfFalse(0));
+                let idx = self.ir.len() - 1;
+
+                // Emit the IF's body
+                self.ast_to_ir(block)?;
+
+                // Mark the end of the IF's body
+                let l = self.emit_label();
+                // Chage the reference to jump to the right label
+                self.ir[idx] = IR::JmpIfFalse(l);
+
+                Ok(None)
+            }
         }
     }
 }
@@ -297,7 +345,7 @@ mod tests {
     fn print_expr(expr: &str) {
         let ast = parser::parse(expr);
         let mut compiler = Compiler::new();
-        compiler.ast_to_ir(&ast);
+        compiler.ast_to_ir(&ast).unwrap();
         let is = compiler.ir;
 
         red_ln!("{:?} => {:?}", ast, is);
@@ -310,8 +358,8 @@ mod tests {
 
     #[test]
     fn test_add_mul() {
-        print_expr("1 + 2 * 3");
-        print_expr("( 1 + 2 ) * 3");
-        print_expr("( 4 + 4 ) / 2");
+        print_expr("1 + 2 * 3;");
+        print_expr("( 1 + 2 ) * 3;");
+        print_expr("( 4 + 4 ) / 2;");
     }
 }

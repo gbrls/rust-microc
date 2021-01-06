@@ -7,3 +7,4 @@ bool t;
     t = false;
 }
 t;
+// -> 0

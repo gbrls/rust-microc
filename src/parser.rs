@@ -74,7 +74,16 @@ fn program(i: &str) -> IResult<&str, AST> {
 
 fn statement(i: &str) -> IResult<&str, AST> {
     //TODO: maybe remove expression statements?
-    alt((block, declare, assign, expr_stmt))(i)
+    alt((if_stmt, block, declare, assign, expr_stmt))(i)
+}
+
+// this is unsound for C, "if true {...}"" is accepted
+// and it's incomplete, "if(x) x = false" is not accepted
+fn if_stmt(i: &str) -> IResult<&str, AST> {
+    map(
+        tuple((preceded(complete(ignore_ws), tag("if")), expr, block)),
+        |(_, a, b)| AST::If(Box::new(a), Box::new(b)),
+    )(i)
 }
 
 fn block(i: &str) -> IResult<&str, AST> {
@@ -277,6 +286,11 @@ mod tests {
     fn test_bool() {
         println!("{:?}", bool_fn(" true"));
         println!("{:?}", bool_fn("   false;"));
+    }
+
+    #[test]
+    fn test_if() {
+        println!("{:?}", if_stmt("if (2 * 3) {int a; a = 20;}"));
     }
 
     #[test]

@@ -45,6 +45,7 @@ fn main() -> Result<(), analysis::CompilationError> {
     exec_file("examples/2.mc")?;
     exec_file("examples/3.mc")?;
     exec_file("examples/4.mc")?;
+    exec_file("examples/5.mc")?;
 
     Ok(())
 }
@@ -74,9 +75,18 @@ mod tests {
         assert!(cmp_eval_compile("(6-1)/2;"));
     }
 
+    fn assert_compile(v: i32, i: &str) {
+        let ans = compile_and_run(i).unwrap();
+        assert_eq!(ans, v);
+    }
+
     #[test]
     fn test_globals() {
-        let ans = compile_and_run("int a;int y;a = 10; a = a * a; y = a / 20 - 1; y;").unwrap();
-        assert_eq!(ans, 4);
+        assert_compile(4, "int a;int y;a = 10; a = a * a; y = a / 20 - 1; y;");
+
+        assert_compile(
+            10,
+            "int a; { a = 10; if (false) { a = 1; if (false) { a = 2; } a = 5; } } a;",
+        );
     }
 }

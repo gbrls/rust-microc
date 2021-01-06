@@ -17,6 +17,9 @@ pub enum AST {
     //
     Many(Vec<AST>),
     Block(Vec<AST>),
+
+    // expr, block
+    If(Box<AST>, Box<AST>),
 }
 
 impl AST {
