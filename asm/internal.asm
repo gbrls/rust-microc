@@ -14,15 +14,7 @@ section .text
 _start:
 
 mov rbp, rsp
-mov ax, 10
-push ax
-pop ax
-mov [a], eax
 mov ax, 0
-push ax
-test ax, ax
-je .L1
-mov ax, 1
 push ax
 pop ax
 mov [a], eax
@@ -30,18 +22,36 @@ mov ax, 0
 push ax
 test ax, ax
 je .L0
+mov ax, 1
+push ax
+pop ax
+mov [a], eax
+add rsp, 0
+jmp .L3
+.L0:
 mov ax, 2
 push ax
 pop ax
 mov [a], eax
-add rsp, 0
-.L0:
-mov ax, 5
+mov ax, 1
+push ax
+test ax, ax
+je .L1
+mov ax, 3
 push ax
 pop ax
 mov [a], eax
 add rsp, 0
+jmp .L2
 .L1:
+mov ax, 4
+push ax
+pop ax
+mov [a], eax
+add rsp, 0
+.L2:
+add rsp, 0
+.L3:
 add rsp, 0
 mov eax, [a]
 push ax

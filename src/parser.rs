@@ -81,9 +81,24 @@ fn statement(i: &str) -> IResult<&str, AST> {
 // and it's incomplete, "if(x) x = false" is not accepted
 fn if_stmt(i: &str) -> IResult<&str, AST> {
     map(
-        tuple((preceded(complete(ignore_ws), tag("if")), expr, block)),
-        |(_, a, b)| AST::If(Box::new(a), Box::new(b)),
+        tuple((
+            preceded(complete(ignore_ws), tag("if")),
+            expr,
+            block,
+            opt(else_part),
+        )),
+        |(_, expr, if_block, else_block)| {
+            let eb = match else_block {
+                Some(e) => Some(Box::new(e)),
+                None => None,
+            };
+            AST::If(Box::new(expr), Box::new(if_block), eb)
+        },
     )(i)
+}
+
+fn else_part(i: &str) -> IResult<&str, AST> {
+    preceded(preceded(complete(ignore_ws), tag("else")), block)(i)
 }
 
 fn block(i: &str) -> IResult<&str, AST> {
@@ -291,6 +306,15 @@ mod tests {
     #[test]
     fn test_if() {
         println!("{:?}", if_stmt("if (2 * 3) {int a; a = 20;}"));
+        println!(
+            "{:?}",
+            if_stmt("if (2 * 3) {int a; a = 20;} else { int b; b = 5;}")
+        );
+    }
+
+    #[test]
+    fn test_else() {
+        println!("{:?}", else_part(" else {int a; a = 20;}"));
     }
 
     #[test]

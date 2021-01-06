@@ -91,6 +91,7 @@ pub enum IR {
     Label(u32),
     JmpIfTrue(u32),
     JmpIfFalse(u32),
+    Jmp(u32),
 }
 
 impl IR {
@@ -129,6 +130,7 @@ impl IR {
             IR::Label(id) => format!(".L{}:", id),
             IR::JmpIfTrue(label) => format!("test ax, ax\njne .L{}", label),
             IR::JmpIfFalse(label) => format!("test ax, ax\nje .L{}", label),
+            IR::Jmp(label) => format!("jmp .L{}", label),
         }
     }
 }
@@ -280,20 +282,33 @@ impl Compiler {
             it's result. Then we emit a placeholder JMP instruction, then we emit the IF's body,
             then we emit the label that marks the end of the IF's body and change the placeholder to jump to it.
             */
-            AST::If(condition, block) => {
+            AST::If(condition, block, else_block) => {
                 self.ast_to_ir(condition)?;
 
                 // Placeholder (This label is not valid!)
                 self.emit(IR::JmpIfFalse(0));
-                let idx = self.ir.len() - 1;
+                let jmp_to_else = self.ir.len() - 1;
 
                 // Emit the IF's body
                 self.ast_to_ir(block)?;
 
-                // Mark the end of the IF's body
+                // Jump from the end of the if to the end of the else (Placeholder!);
+                self.emit(IR::Jmp(0));
+                let jmp_to_end = self.ir.len() - 1;
+
+                // Mark the end of the IF's statement
                 let l = self.emit_label();
                 // Chage the reference to jump to the right label
-                self.ir[idx] = IR::JmpIfFalse(l);
+                self.ir[jmp_to_else] = IR::JmpIfFalse(l);
+
+                // Emit else block if it exists
+                if let Some(b) = else_block {
+                    self.ast_to_ir(b)?;
+                }
+
+                // Mark the end of the Else's block
+                let l = self.emit_label();
+                self.ir[jmp_to_end] = IR::Jmp(l);
 
                 Ok(None)
             }

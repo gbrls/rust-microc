@@ -18,8 +18,8 @@ pub enum AST {
     Many(Vec<AST>),
     Block(Vec<AST>),
 
-    // expr, block
-    If(Box<AST>, Box<AST>),
+    // expr, block, else
+    If(Box<AST>, Box<AST>, Option<Box<AST>>),
 }
 
 impl AST {
