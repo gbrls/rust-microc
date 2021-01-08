@@ -60,7 +60,8 @@ GRAMMAR (may be outdated)
 <expression> ::= <term>
 
 <term> ::= <factor> (('+' | '-') <factor>)*
-<factor> ::= <primary> (('*' | '/') <primary>)*
+<factor> ::= <and_op> (('*' | '/') <and_op>)*
+<and_op> ::= <primary> (&& <primary>)*
 
 <primary> ::= NUMBER | SYMBOL | BOOL | ( <term> )
 
@@ -146,7 +147,47 @@ named!(assign_old<&str, AST>,
     )
 );
 
-named!(expr<&str, AST>, map!(term, |x| x));
+named!(expr<&str, AST>, map!(or_op, |x| x));
+
+fn or_op(i: &str) -> IResult<&str, AST> {
+    map(
+        tuple((
+            and_op,
+            fold_many0(
+                preceded(preceded(complete(ignore_ws), tag("||")), and_op),
+                None,
+                |acc, n| match acc {
+                    Some(a) => Some(AST::BoolOr(Box::new(a), Box::new(n))),
+                    None => Some(n),
+                },
+            ),
+        )),
+        |(f, r)| match r {
+            Some(a) => AST::BoolOr(Box::new(f), Box::new(a)),
+            None => f,
+        },
+    )(i)
+}
+
+fn and_op(i: &str) -> IResult<&str, AST> {
+    map(
+        tuple((
+            term,
+            fold_many0(
+                preceded(preceded(complete(ignore_ws), tag("&&")), term),
+                None,
+                |acc, n| match acc {
+                    Some(a) => Some(AST::BoolAnd(Box::new(a), Box::new(n))),
+                    None => Some(n),
+                },
+            ),
+        )),
+        |(f, r)| match r {
+            Some(a) => AST::BoolAnd(Box::new(f), Box::new(a)),
+            None => f,
+        },
+    )(i)
+}
 
 named!(term<&str, AST>,
     do_parse!(
@@ -197,7 +238,7 @@ named!(primary<&str, AST>,
             map!(number, |x| AST::Number(x)) |
             delimited!(
                 char!('('),
-                term,
+                expr,
                 preceded!(complete!(ignore_ws), char!(')'))
             ) |
             map!(symbol, |x| AST::GetVar(x.to_owned()))
@@ -315,6 +356,21 @@ mod tests {
     #[test]
     fn test_else() {
         println!("{:?}", else_part(" else {int a; a = 20;}"));
+    }
+
+    #[test]
+    fn test_and() {
+        println!("{:?}", and_op(" 1 + 2 && 3 * 4 && true"));
+        println!("{:?}", and_op(" 1 + 2 / 3 * 4"));
+    }
+
+    #[test]
+    fn test_or() {
+        println!("{:?}", or_op(" 1 + 2 && 3 * 4 && true"));
+        println!("{:?}", or_op(" 1 + 2 / 3 * 4"));
+        println!("{:?}", or_op(" true || false && true"));
+        println!("{:?}", or_op(" true || 1 + 2 && 3 * 4 && true || false"));
+        println!("{:?}", parse("if (true && false) { int a; }"));
     }
 
     #[test]

@@ -9,6 +9,9 @@ pub enum AST {
     Mul(Box<AST>, Box<AST>),
     Div(Box<AST>, Box<AST>),
 
+    BoolAnd(Box<AST>, Box<AST>),
+    BoolOr(Box<AST>, Box<AST>),
+
     AssignVar(String, Box<AST>),
     GetVar(String),
     DeclareVar(String, Type),

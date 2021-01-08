@@ -5,7 +5,7 @@ use crate::analysis;
 use crate::analysis::CompilationError;
 use crate::ast::{Type, AST};
 use crate::parser;
-use std::collections::HashMap;
+use std::{collections::HashMap, convert::TryInto};
 
 #[derive(Debug)]
 struct Stack {
@@ -76,6 +76,9 @@ pub enum IR {
     MUL,
     DIV,
 
+    AND,
+    OR,
+
     GetGlobal(String),
     SetGlobal(String),
 
@@ -84,6 +87,8 @@ pub enum IR {
     SetLocal(u32, u32),
 
     // Stack operations
+    // Pop is different from Shrink because it stores the poppep value in AX
+    POP,
     Shrink(u32),
     Grow(u32),
 
@@ -112,6 +117,9 @@ impl IR {
             IR::MUL => "pop bx\npop ax\nmul ebx\npush ax".to_string(),
             IR::DIV => "pop bx\npop ax\ndiv ebx\npush ax".to_string(),
 
+            IR::AND => "pop bx\npop ax\nand eax, ebx\npush ax".to_string(),
+            IR::OR => "pop bx\npop ax\nor eax, ebx\npush ax".to_string(),
+
             IR::GetGlobal(v) => {
                 let sz: u32 = (*syms.get(v).unwrap()).into();
                 format!("mov {}, [{}]\npush ax", reg(sz), v)
@@ -126,6 +134,7 @@ impl IR {
 
             IR::Grow(sz) => format!("sub rsp, {}", sz),
             IR::Shrink(sz) => format!("add rsp, {}", sz),
+            IR::POP => "pop ax".to_string(),
 
             IR::Label(id) => format!(".L{}:", id),
             IR::JmpIfTrue(label) => format!("test ax, ax\njne .L{}", label),
@@ -162,6 +171,22 @@ impl Compiler {
 
         // returns the id of the newly created label
         self.labels - 1
+    }
+
+    fn update_sub(&mut self, pos: usize, value: u32) {
+        let n = match &self.ir[pos] {
+            IR::Jmp(_) => IR::Jmp(value),
+            IR::JmpIfFalse(_) => IR::JmpIfFalse(value),
+            IR::JmpIfTrue(_) => IR::JmpIfTrue(value),
+            x => panic!("{:?} is not a stub!", x),
+        };
+
+        self.ir[pos] = n;
+    }
+
+    fn emit_stub(&mut self, instr: IR) -> usize {
+        self.emit(instr);
+        self.ir.len() - 1
     }
 
     fn next_label(&self) -> u32 {
@@ -271,7 +296,9 @@ impl Compiler {
 
                 self.ast_to_ir(&AST::Many(v.to_owned()))?;
 
+                // Here we remove all the variables on this scope
                 let sz = self.stack.pop();
+
                 self.emit(IR::Shrink(sz));
                 self.stack.scope -= 1;
 
@@ -284,22 +311,21 @@ impl Compiler {
             */
             AST::If(condition, block, else_block) => {
                 self.ast_to_ir(condition)?;
+                self.emit(IR::POP);
 
                 // Placeholder (This label is not valid!)
-                self.emit(IR::JmpIfFalse(0));
-                let jmp_to_else = self.ir.len() - 1;
+                let jmp_to_else = self.emit_stub(IR::JmpIfFalse(0));
 
                 // Emit the IF's body
                 self.ast_to_ir(block)?;
 
                 // Jump from the end of the if to the end of the else (Placeholder!);
-                self.emit(IR::Jmp(0));
-                let jmp_to_end = self.ir.len() - 1;
+                let jmp_to_end = self.emit_stub(IR::Jmp(0));
 
                 // Mark the end of the IF's statement
                 let l = self.emit_label();
                 // Chage the reference to jump to the right label
-                self.ir[jmp_to_else] = IR::JmpIfFalse(l);
+                self.update_sub(jmp_to_else, l);
 
                 // Emit else block if it exists
                 if let Some(b) = else_block {
@@ -308,9 +334,44 @@ impl Compiler {
 
                 // Mark the end of the Else's block
                 let l = self.emit_label();
-                self.ir[jmp_to_end] = IR::Jmp(l);
+                self.update_sub(jmp_to_end, l);
 
                 Ok(None)
+            }
+
+            AST::BoolAnd(first, rest) => {
+                let t = self.ast_to_ir(first)?;
+                if !matches!(t, Some(Type::BOOL)) {
+                    return Err(CompilationError::IncompatibleTypes);
+                }
+
+                // Short circuting (if the first expression is false we return false)
+                let jmp_to_end = self.emit_stub(IR::JmpIfFalse(0));
+
+                self.ast_to_ir(rest)?;
+                self.emit(IR::AND);
+
+                let l = self.emit_label();
+                self.update_sub(jmp_to_end, l);
+
+                Ok(Some(Type::BOOL))
+            }
+            AST::BoolOr(first, rest) => {
+                let t = self.ast_to_ir(first)?;
+                if !matches!(t, Some(Type::BOOL)) {
+                    return Err(CompilationError::IncompatibleTypes);
+                }
+
+                // Short circuting (if the first expression is true we return true)
+                let jmp_to_end = self.emit_stub(IR::JmpIfTrue(0));
+
+                self.ast_to_ir(rest)?;
+                self.emit(IR::OR);
+
+                let l = self.emit_label();
+                self.update_sub(jmp_to_end, l);
+
+                Ok(Some(Type::BOOL))
             }
         }
     }

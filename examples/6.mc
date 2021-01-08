@@ -1,21 +1,23 @@
 int a;
 {
-    a = 0;
+    a = 10;
     if (false)
     {
-        a = 1;
+        a = 11;
     }
     else
     {
-        a = 2;
+        a = 12;
         if (true)
         {
-            a = 3;
+            a = 13;
         }
         else
         {
-            a = 4;
+            a = 14;
         }
+        a = 15;
     }
+    a = 16;
 }
 a;

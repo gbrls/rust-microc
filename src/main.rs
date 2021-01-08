@@ -47,6 +47,7 @@ fn main() -> Result<(), analysis::CompilationError> {
     exec_file("examples/4.mc")?;
     exec_file("examples/5.mc")?;
     exec_file("examples/6.mc")?;
+    exec_file("examples/7.mc")?;
 
     Ok(())
 }
@@ -90,6 +91,14 @@ mod tests {
             "int a; { a = 10; if (false) { a = 1; if (false) { a = 2; } a = 5; } } a;",
         );
 
-        assert_compile(3, "int a; { a = 0; if (false) { a = 1; } else { a = 2; if (true) { a = 3; } else { a = 4; } } } a;");
+        assert_compile(
+            3, 
+            "int a; { a = 0; if (false) { a = 1; } else { a = 2; if (true) { a = 3; } else { a = 4; } } } a;"
+        );
+
+        assert_compile(
+            12,
+            "int a; { a = 10; if (true && true && false) { a = 11; } else { if (true && (false || true)) { a = 12; } else { if (true || false) { a = 13; } } } } a;",
+        );
     }
 }
