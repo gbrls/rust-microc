@@ -121,7 +121,7 @@ impl IR {
             IR::DIV => "pop bx\npop ax\ndiv ebx\npush ax".to_string(),
 
             IR::LESS => {
-                "pop bx\npop ax\ncmp eax, ebx\nmov bx, 1\nmov cx, 0\ncmovb ax, bx\ncmova ax, cx\npush ax".to_string()
+                "pop bx\npop ax\ncmp eax, ebx\nmov bx, 1\nmov cx, 0\ncmovb ax, bx\ncmovae ax, cx\npush ax".to_string()
             }
 
             IR::AND => "pop bx\npop ax\nand eax, ebx\npush ax".to_string(),
@@ -224,7 +224,7 @@ impl Compiler {
             let b = self.ast_to_ir(b)?;
 
             match (a, b) {
-                (Some(Type::INT), Some(Type::INT)) => {
+                (Some(INT), Some(INT)) => {
                     self.emit(op);
                     Ok(Some(t))
                 }
@@ -252,11 +252,11 @@ impl Compiler {
                 self.emit(PUSH(x.to_owned()));
                 Ok(Some(Type::INT))
             }
-            AST::Add(a, b) => bin_op(a, b, ADD, Type::INT),
-            AST::Sub(a, b) => bin_op(a, b, SUB, Type::INT),
-            AST::Mul(a, b) => bin_op(a, b, MUL, Type::INT),
-            AST::Div(a, b) => bin_op(a, b, DIV, Type::INT),
-            AST::Lesser(a, b) => bin_op(a, b, LESS, Type::BOOL),
+            AST::Add(a, b) => bin_op(a, b, ADD, INT),
+            AST::Sub(a, b) => bin_op(a, b, SUB, INT),
+            AST::Mul(a, b) => bin_op(a, b, MUL, INT),
+            AST::Div(a, b) => bin_op(a, b, DIV, INT),
+            AST::Lesser(a, b) => bin_op(a, b, LESS, BOOL),
 
             AST::Many(v) => {
                 for e in v {
@@ -327,7 +327,7 @@ impl Compiler {
             then we emit the label that marks the end of the IF's body and change the placeholder to jump to it.
             */
             AST::If(condition, block, else_block) => {
-                expect(Some(Type::BOOL), self.ast_to_ir(condition)?)?;
+                expect(Some(BOOL), self.ast_to_ir(condition)?)?;
 
                 self.emit(IR::POP);
 
@@ -355,18 +355,12 @@ impl Compiler {
 
             AST::BoolAnd(first, rest) => {
                 let t = self.ast_to_ir(first)?;
-                //TODO: abstract this in a procedure and improve the error message
-                if !matches!(t, Some(Type::BOOL)) {
-                    return Err(CompilationError::IncompatibleTypes);
-                }
+                expect(Some(BOOL), self.ast_to_ir(first)?)?;
 
                 // Short circuting (if the first expression is false we return false)
                 let jmp_to_end = self.emit_stub(IR::JmpIfFalse(0));
 
-                let t = self.ast_to_ir(rest)?;
-                if !matches!(t, Some(Type::BOOL)) {
-                    return Err(CompilationError::IncompatibleTypes);
-                }
+                expect(Some(BOOL), self.ast_to_ir(rest)?)?;
 
                 self.emit(IR::AND);
 
@@ -376,18 +370,13 @@ impl Compiler {
             }
 
             AST::BoolOr(first, rest) => {
-                let t = self.ast_to_ir(first)?;
-                if !matches!(t, Some(Type::BOOL)) {
-                    return Err(CompilationError::IncompatibleTypes);
-                }
+                expect(Some(BOOL), self.ast_to_ir(first)?)?;
 
                 // Short circuting (if the first expression is true we return true)
                 let jmp_to_end = self.emit_stub(IR::JmpIfTrue(0));
 
-                let t = self.ast_to_ir(rest)?;
-                if !matches!(t, Some(Type::BOOL)) {
-                    return Err(CompilationError::IncompatibleTypes);
-                }
+                expect(Some(BOOL), self.ast_to_ir(rest)?)?;
+
                 self.emit(IR::OR);
 
                 self.update_stub(jmp_to_end);
@@ -398,7 +387,7 @@ impl Compiler {
             AST::While(cond, block) => {
                 let start = self.emit_label();
 
-                expect(Some(Type::BOOL), self.ast_to_ir(cond)?)?;
+                expect(Some(BOOL), self.ast_to_ir(cond)?)?;
 
                 let end = self.emit_stub(IR::JmpIfFalse(0));
 

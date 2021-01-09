@@ -14,30 +14,11 @@ section .text
 _start:
 
 mov rbp, rsp
-sub rsp, 4
-mov ax, 0
-push ax
-pop ax
-mov [rbp-4], eax
 mov ax, 1
 push ax
 pop ax
 mov [ans], eax
 .L0:
-mov eax, [rbp-4]
-push ax
-mov ax, 50
-push ax
-pop bx
-pop ax
-cmp eax, ebx
-mov bx, 1
-mov cx, 0
-cmovb ax, bx
-cmova ax, cx
-push ax
-test ax, ax
-je .L1
 mov eax, [ans]
 push ax
 mov ax, 64
@@ -48,15 +29,10 @@ cmp eax, ebx
 mov bx, 1
 mov cx, 0
 cmovb ax, bx
-cmova ax, cx
+cmovae ax, cx
 push ax
-pop bx
-pop ax
-and eax, ebx
-push ax
-.L1:
 test ax, ax
-je .L2
+je .L1
 mov eax, [ans]
 push ax
 mov ax, 2
@@ -67,20 +43,10 @@ mul ebx
 push ax
 pop ax
 mov [ans], eax
-mov eax, [rbp-4]
-push ax
-mov ax, 1
-push ax
-pop bx
-pop ax
-add eax, ebx
-push ax
-pop ax
-mov [rbp-4], eax
 add rsp, 0
 jmp .L0
-.L2:
-add rsp, 4
+.L1:
+add rsp, 0
 mov eax, [ans]
 push ax
 
