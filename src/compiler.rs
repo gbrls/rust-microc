@@ -76,6 +76,8 @@ pub enum IR {
     MUL,
     DIV,
 
+    LESS,
+
     AND,
     OR,
 
@@ -94,6 +96,7 @@ pub enum IR {
 
     // Continionals
     Label(u32),
+
     JmpIfTrue(u32),
     JmpIfFalse(u32),
     Jmp(u32),
@@ -116,6 +119,10 @@ impl IR {
             IR::SUB => "pop bx\npop ax\nsub eax, ebx\npush ax".to_string(),
             IR::MUL => "pop bx\npop ax\nmul ebx\npush ax".to_string(),
             IR::DIV => "pop bx\npop ax\ndiv ebx\npush ax".to_string(),
+
+            IR::LESS => {
+                "pop bx\npop ax\ncmp eax, ebx\nmov bx, 1\nmov cx, 0\ncmovb ax, bx\ncmova ax, cx\npush ax".to_string()
+            }
 
             IR::AND => "pop bx\npop ax\nand eax, ebx\npush ax".to_string(),
             IR::OR => "pop bx\npop ax\nor eax, ebx\npush ax".to_string(),
@@ -173,7 +180,8 @@ impl Compiler {
         self.labels - 1
     }
 
-    fn update_sub(&mut self, pos: usize, value: u32) {
+    fn update_stub(&mut self, pos: usize) {
+        let value = self.emit_label();
         let n = match &self.ir[pos] {
             IR::Jmp(_) => IR::Jmp(value),
             IR::JmpIfFalse(_) => IR::JmpIfFalse(value),
@@ -211,16 +219,24 @@ impl Compiler {
 
     fn ast_to_ir(&mut self, ast: &AST) -> Result<Option<Type>, CompilationError> {
         use Type::*;
-        let mut bin_int = |a, b, op| -> Result<Option<Type>, CompilationError> {
+        let mut bin_op = |a, b, op, t| -> Result<Option<Type>, CompilationError> {
             let a = self.ast_to_ir(a)?;
             let b = self.ast_to_ir(b)?;
 
             match (a, b) {
                 (Some(Type::INT), Some(Type::INT)) => {
                     self.emit(op);
-                    Ok(Some(INT))
+                    Ok(Some(t))
                 }
                 _ => Err(CompilationError::IncompatibleTypes),
+            }
+        };
+
+        let expect = |a, b| -> Result<(), CompilationError> {
+            if a == b {
+                Ok(())
+            } else {
+                Err(CompilationError::IncompatibleTypes)
             }
         };
 
@@ -236,10 +252,11 @@ impl Compiler {
                 self.emit(PUSH(x.to_owned()));
                 Ok(Some(Type::INT))
             }
-            AST::Add(a, b) => bin_int(a, b, ADD),
-            AST::Sub(a, b) => bin_int(a, b, SUB),
-            AST::Mul(a, b) => bin_int(a, b, MUL),
-            AST::Div(a, b) => bin_int(a, b, DIV),
+            AST::Add(a, b) => bin_op(a, b, ADD, Type::INT),
+            AST::Sub(a, b) => bin_op(a, b, SUB, Type::INT),
+            AST::Mul(a, b) => bin_op(a, b, MUL, Type::INT),
+            AST::Div(a, b) => bin_op(a, b, DIV, Type::INT),
+            AST::Lesser(a, b) => bin_op(a, b, LESS, Type::BOOL),
 
             AST::Many(v) => {
                 for e in v {
@@ -310,7 +327,8 @@ impl Compiler {
             then we emit the label that marks the end of the IF's body and change the placeholder to jump to it.
             */
             AST::If(condition, block, else_block) => {
-                self.ast_to_ir(condition)?;
+                expect(Some(Type::BOOL), self.ast_to_ir(condition)?)?;
+
                 self.emit(IR::POP);
 
                 // Placeholder (This label is not valid!)
@@ -323,24 +341,21 @@ impl Compiler {
                 let jmp_to_end = self.emit_stub(IR::Jmp(0));
 
                 // Mark the end of the IF's statement
-                let l = self.emit_label();
-                // Chage the reference to jump to the right label
-                self.update_sub(jmp_to_else, l);
+                self.update_stub(jmp_to_else);
 
-                // Emit else block if it exists
                 if let Some(b) = else_block {
                     self.ast_to_ir(b)?;
                 }
 
                 // Mark the end of the Else's block
-                let l = self.emit_label();
-                self.update_sub(jmp_to_end, l);
+                self.update_stub(jmp_to_end);
 
                 Ok(None)
             }
 
             AST::BoolAnd(first, rest) => {
                 let t = self.ast_to_ir(first)?;
+                //TODO: abstract this in a procedure and improve the error message
                 if !matches!(t, Some(Type::BOOL)) {
                     return Err(CompilationError::IncompatibleTypes);
                 }
@@ -348,14 +363,18 @@ impl Compiler {
                 // Short circuting (if the first expression is false we return false)
                 let jmp_to_end = self.emit_stub(IR::JmpIfFalse(0));
 
-                self.ast_to_ir(rest)?;
+                let t = self.ast_to_ir(rest)?;
+                if !matches!(t, Some(Type::BOOL)) {
+                    return Err(CompilationError::IncompatibleTypes);
+                }
+
                 self.emit(IR::AND);
 
-                let l = self.emit_label();
-                self.update_sub(jmp_to_end, l);
+                self.update_stub(jmp_to_end);
 
                 Ok(Some(Type::BOOL))
             }
+
             AST::BoolOr(first, rest) => {
                 let t = self.ast_to_ir(first)?;
                 if !matches!(t, Some(Type::BOOL)) {
@@ -365,13 +384,30 @@ impl Compiler {
                 // Short circuting (if the first expression is true we return true)
                 let jmp_to_end = self.emit_stub(IR::JmpIfTrue(0));
 
-                self.ast_to_ir(rest)?;
+                let t = self.ast_to_ir(rest)?;
+                if !matches!(t, Some(Type::BOOL)) {
+                    return Err(CompilationError::IncompatibleTypes);
+                }
                 self.emit(IR::OR);
 
-                let l = self.emit_label();
-                self.update_sub(jmp_to_end, l);
+                self.update_stub(jmp_to_end);
 
                 Ok(Some(Type::BOOL))
+            }
+
+            AST::While(cond, block) => {
+                let start = self.emit_label();
+
+                expect(Some(Type::BOOL), self.ast_to_ir(cond)?)?;
+
+                let end = self.emit_stub(IR::JmpIfFalse(0));
+
+                self.ast_to_ir(block)?;
+                self.emit(IR::Jmp(start));
+
+                self.update_stub(end);
+
+                Ok(None)
             }
         }
     }

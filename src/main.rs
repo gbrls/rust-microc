@@ -48,6 +48,7 @@ fn main() -> Result<(), analysis::CompilationError> {
     exec_file("examples/5.mc")?;
     exec_file("examples/6.mc")?;
     exec_file("examples/7.mc")?;
+    exec_file("examples/8.mc")?;
 
     Ok(())
 }

@@ -75,7 +75,14 @@ fn program(i: &str) -> IResult<&str, AST> {
 
 fn statement(i: &str) -> IResult<&str, AST> {
     //TODO: maybe remove expression statements?
-    alt((if_stmt, block, declare, assign, expr_stmt))(i)
+    alt((while_stmt, if_stmt, block, declare, assign, expr_stmt))(i)
+}
+
+fn while_stmt(i: &str) -> IResult<&str, AST> {
+    map(
+        tuple((preceded(complete(ignore_ws), tag("while")), expr, block)),
+        |(_, cond, b)| AST::While(Box::new(cond), Box::new(b)),
+    )(i)
 }
 
 // this is unsound for C, "if true {...}"" is accepted
@@ -172,9 +179,9 @@ fn or_op(i: &str) -> IResult<&str, AST> {
 fn and_op(i: &str) -> IResult<&str, AST> {
     map(
         tuple((
-            term,
+            lesser_op,
             fold_many0(
-                preceded(preceded(complete(ignore_ws), tag("&&")), term),
+                preceded(preceded(complete(ignore_ws), tag("&&")), lesser_op),
                 None,
                 |acc, n| match acc {
                     Some(a) => Some(AST::BoolAnd(Box::new(a), Box::new(n))),
@@ -184,6 +191,26 @@ fn and_op(i: &str) -> IResult<&str, AST> {
         )),
         |(f, r)| match r {
             Some(a) => AST::BoolAnd(Box::new(f), Box::new(a)),
+            None => f,
+        },
+    )(i)
+}
+
+fn lesser_op(i: &str) -> IResult<&str, AST> {
+    map(
+        tuple((
+            term,
+            fold_many0(
+                preceded(preceded(complete(ignore_ws), char('<')), term),
+                None,
+                |acc, n| match acc {
+                    Some(a) => Some(AST::Lesser(Box::new(a), Box::new(n))),
+                    None => Some(n),
+                },
+            ),
+        )),
+        |(f, r)| match r {
+            Some(a) => AST::Lesser(Box::new(f), Box::new(a)),
             None => f,
         },
     )(i)
@@ -371,6 +398,16 @@ mod tests {
         println!("{:?}", or_op(" true || false && true"));
         println!("{:?}", or_op(" true || 1 + 2 && 3 * 4 && true || false"));
         println!("{:?}", parse("if (true && false) { int a; }"));
+    }
+
+    #[test]
+    fn test_while() {
+        println!("{:?}", while_stmt("while (1 / 2) {int a; a = 10;}"))
+    }
+
+    #[test]
+    fn test_lesser() {
+        println!("{:?}", lesser_op("(1 / 2) < a;"))
     }
 
     #[test]

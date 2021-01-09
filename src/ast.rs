@@ -9,6 +9,8 @@ pub enum AST {
     Mul(Box<AST>, Box<AST>),
     Div(Box<AST>, Box<AST>),
 
+    Lesser(Box<AST>, Box<AST>),
+
     BoolAnd(Box<AST>, Box<AST>),
     BoolOr(Box<AST>, Box<AST>),
 
@@ -23,6 +25,8 @@ pub enum AST {
 
     // expr, block, else
     If(Box<AST>, Box<AST>, Option<Box<AST>>),
+
+    While(Box<AST>, Box<AST>),
 }
 
 impl AST {

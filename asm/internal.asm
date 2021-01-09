@@ -7,51 +7,81 @@ int 0x80     ; make system call
 
 section .data
 
-a dd 0
+ans dd 0
 
 section .text
 
 _start:
 
 mov rbp, rsp
-mov ax, 10
-push ax
-pop ax
-mov [a], eax
-mov ax, 1
-push ax
-test ax, ax
-je .L1
+sub rsp, 4
 mov ax, 0
 push ax
-test ax, ax
-jne .L0
+pop ax
+mov [rbp-4], eax
 mov ax, 1
+push ax
+pop ax
+mov [ans], eax
+.L0:
+mov eax, [rbp-4]
+push ax
+mov ax, 50
 push ax
 pop bx
 pop ax
-or eax, ebx
+cmp eax, ebx
+mov bx, 1
+mov cx, 0
+cmovb ax, bx
+cmova ax, cx
 push ax
-.L0:
+test ax, ax
+je .L1
+mov eax, [ans]
+push ax
+mov ax, 64
+push ax
+pop bx
+pop ax
+cmp eax, ebx
+mov bx, 1
+mov cx, 0
+cmovb ax, bx
+cmova ax, cx
+push ax
 pop bx
 pop ax
 and eax, ebx
 push ax
-.L1: ;; IF's test
-pop ax
+.L1:
 test ax, ax
 je .L2
-mov ax, 11
+mov eax, [ans]
+push ax
+mov ax, 2
+push ax
+pop bx
+pop ax
+mul ebx
 push ax
 pop ax
-mov [a], eax
+mov [ans], eax
+mov eax, [rbp-4]
+push ax
+mov ax, 1
+push ax
+pop bx
+pop ax
+add eax, ebx
+push ax
+pop ax
+mov [rbp-4], eax
 add rsp, 0
-jmp .L3
+jmp .L0
 .L2:
-.L3:
-sub rsp, 4
 add rsp, 4
-mov eax, [a]
+mov eax, [ans]
 push ax
 
 EXIT
