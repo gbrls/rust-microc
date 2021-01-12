@@ -27,7 +27,10 @@ fn bool_fn(i: &str) -> IResult<&str, AST> {
 }
 
 fn symbol(i: &str) -> IResult<&str, &str> {
-    preceded(complete(ignore_ws), alpha1)(i)
+    preceded(complete(ignore_ws), _symbol)(i)
+}
+fn _symbol(i: &str) -> IResult<&str, &str> {
+    recognize(preceded(opt(char('_')), alpha1))(i)
 }
 
 fn ptype(i: &str) -> IResult<&str, Type> {
@@ -41,6 +44,54 @@ fn ptype(i: &str) -> IResult<&str, Type> {
             }
         }
         f.expect("Type variant not found")
+    })(i)
+}
+
+fn fun_args(i: &str) -> IResult<&str, Vec<(String, Type)>> {
+    map(
+        delimited(
+            preceded(complete(ignore_ws), char('(')),
+            many0(tuple((
+                opt(preceded(complete(ignore_ws), char(','))),
+                preceded(complete(ignore_ws), ptype),
+                symbol,
+            ))),
+            preceded(complete(ignore_ws), char(')')),
+        ),
+        |v| {
+            v.iter()
+                .map(|(_, t, sym)| (sym.to_string(), t.to_owned()))
+                .collect()
+        },
+    )(i)
+}
+
+fn fun_declaration(i: &str) -> IResult<&str, AST> {
+    map(
+        tuple((
+            preceded(complete(ignore_ws), ptype),
+            symbol,
+            fun_args,
+            block,
+        )),
+        |(t, sym, args, b)| AST::FunDecl(t, sym.to_owned(), args, Box::new(b)),
+    )(i)
+}
+
+fn fun_arg_call(i: &str) -> IResult<&str, Vec<AST>> {
+    map(
+        delimited(
+            preceded(complete(ignore_ws), char('(')),
+            many0(tuple((opt(preceded(complete(ignore_ws), char(','))), expr))),
+            preceded(complete(ignore_ws), char(')')),
+        ),
+        |v| v.iter().map(|(_, e)| e.to_owned()).collect(),
+    )(i)
+}
+
+fn funcall(i: &str) -> IResult<&str, AST> {
+    map(tuple((symbol, fun_arg_call)), |(name, args)| {
+        AST::FunCall(name.to_string(), args)
     })(i)
 }
 
@@ -75,7 +126,15 @@ fn program(i: &str) -> IResult<&str, AST> {
 
 fn statement(i: &str) -> IResult<&str, AST> {
     //TODO: maybe remove expression statements?
-    alt((while_stmt, if_stmt, block, declare, assign, expr_stmt))(i)
+    alt((
+        fun_declaration,
+        while_stmt,
+        if_stmt,
+        block,
+        declare,
+        assign,
+        expr_stmt,
+    ))(i)
 }
 
 fn while_stmt(i: &str) -> IResult<&str, AST> {
@@ -262,6 +321,7 @@ named!(primary<&str, AST>,
     preceded!(complete!(ignore_ws),
         alt!(
             bool_fn |
+            funcall |
             map!(number, |x| AST::Number(x)) |
             delimited!(
                 char!('('),
@@ -338,6 +398,7 @@ mod tests {
         );
 
         println!("{:?}", block(" { t = true;     bool b; } t;"));
+        println!("{:?}", program("x = fibb(10);"));
     }
 
     fn test_newline(i: &str) -> IResult<&str, Vec<AST>> {
@@ -408,6 +469,32 @@ mod tests {
     #[test]
     fn test_lesser() {
         println!("{:?}", lesser_op("(1 / 2) < a;"))
+    }
+
+    #[test]
+    fn test_fn_args() {
+        println!("{:?}", fun_args("(int x, bool y, int z)"))
+    }
+
+    #[test]
+    fn test_fn_args_call() {
+        println!("{:?}", fun_arg_call("(x, y, 1 * 3 / 4)"))
+    }
+
+    #[test]
+    fn test_funcall() {
+        println!("{:?}", funcall("fn(x, y, 1 * 3 / 4)"))
+    }
+
+    #[test]
+    fn test_fn_decl() {
+        println!(
+            "{:?}",
+            fun_declaration("int func(int x, bool y, int z) { int a; a = 10;}")
+        );
+
+        println!("{:?}", fun_declaration("int noarg() { int a; a = 10;}"));
+        println!("{:?}", fun_declaration("int sarg(int x) { int y;}"));
     }
 
     #[test]

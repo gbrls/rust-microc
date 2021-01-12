@@ -25,8 +25,10 @@ pub enum AST {
 
     // expr, block, else
     If(Box<AST>, Box<AST>, Option<Box<AST>>),
-
     While(Box<AST>, Box<AST>),
+
+    FunDecl(Type, String, Vec<(String, Type)>, Box<AST>),
+    FunCall(String, Vec<AST>),
 }
 
 impl AST {
