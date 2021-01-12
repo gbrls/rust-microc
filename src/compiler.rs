@@ -8,6 +8,18 @@ use crate::parser;
 use std::{collections::HashMap, convert::TryInto};
 
 #[derive(Debug)]
+struct StackFrame {
+    // Start relative to the compiler's stack
+    scope: u32,
+}
+
+impl StackFrame {
+    fn new() -> StackFrame {
+        StackFrame { scope: 0 }
+    }
+}
+
+#[derive(Debug)]
 struct Stack {
     // name, scope, type
     data: Vec<(String, u32, Type)>,
@@ -57,8 +69,8 @@ impl Stack {
             if name == var {
                 return Some(((self.size - sz), *t));
             } else {
-                let s: u32 = (*t).into();
-                sz += s;
+                let var_sz: u32 = (*t).into();
+                sz += var_sz;
             }
         }
         None
@@ -88,11 +100,15 @@ pub enum IR {
     GetLocal(u32, u32),
     SetLocal(u32, u32),
 
+    GetArg(u32, u32),
+
     // Stack operations
     // Pop is different from Shrink because it stores the poppep value in AX
     POP,
     Shrink(u32),
     Grow(u32),
+    ResetStack,
+    RestoreStack,
 
     // Continionals
     Label(u32),
@@ -100,14 +116,20 @@ pub enum IR {
     JmpIfTrue(u32),
     JmpIfFalse(u32),
     Jmp(u32),
+
+    FnName(String),
+    Call(String),
+    RET,
+    PushAX,
 }
 
 impl IR {
     fn emit(&self, syms: &HashMap<String, Type>) -> String {
+        // Different sizes disabled for now
         let reg = |sz| match sz {
             1 => "al",
             2 => "ax",
-            4 => "eax",
+            4 => "ax",
             8 => "rax",
             _ => panic!("There's no register for {} bits!", sz * 8),
         };
@@ -121,7 +143,7 @@ impl IR {
             IR::DIV => "pop bx\npop ax\ndiv ebx\npush ax".to_string(),
 
             IR::LESS => {
-                "pop bx\npop ax\ncmp eax, ebx\nmov bx, 1\nmov cx, 0\ncmovb ax, bx\ncmovae ax, cx\npush ax".to_string()
+                "pop bx\npop ax\ncmp ax, bx\nmov bx, 1\nmov cx, 0\ncmovb ax, bx\ncmovae ax, cx\npush ax".to_string()
             }
 
             IR::AND => "pop bx\npop ax\nand eax, ebx\npush ax".to_string(),
@@ -139,14 +161,23 @@ impl IR {
             IR::GetLocal(v, sz) => format!("mov {}, [rbp-{}]\npush ax", reg(*sz), v),
             IR::SetLocal(v, sz) => format!("pop ax\nmov [rbp-{}], {}", v, reg(*sz)),
 
+            IR::GetArg(v, sz) => format!("mov {}, [rbp+{}]\npush ax", reg(*sz), (v+1)/2+16),
+
             IR::Grow(sz) => format!("sub rsp, {}", sz),
             IR::Shrink(sz) => format!("add rsp, {}", sz),
             IR::POP => "pop ax".to_string(),
+            IR::ResetStack => "push rbp\nmov rbp, rsp".to_string(),
+            IR::RestoreStack => "pop rbp".to_string(),
 
             IR::Label(id) => format!(".L{}:", id),
             IR::JmpIfTrue(label) => format!("test ax, ax\njne .L{}", label),
             IR::JmpIfFalse(label) => format!("test ax, ax\nje .L{}", label),
             IR::Jmp(label) => format!("jmp .L{}", label),
+
+            IR::FnName(name) => format!("\n{}:", name),
+            IR::RET => "ret".to_string(),
+            IR::Call(n) => format!("call {}", n),
+            IR::PushAX => "push ax".to_string(),
         }
     }
 }
@@ -156,6 +187,9 @@ struct Compiler {
     stack: Stack,
     ir: Vec<IR>,
     labels: u32,
+
+    funcs: HashMap<String, (Type, Vec<(String, Type)>)>,
+    cur_fn: Vec<String>,
 }
 
 impl Compiler {
@@ -165,6 +199,9 @@ impl Compiler {
             stack: Stack::new(),
             ir: Vec::new(),
             labels: 0,
+
+            funcs: HashMap::new(),
+            cur_fn: Vec::new(),
         }
     }
 
@@ -206,13 +243,49 @@ impl Compiler {
     }
 
     fn find_type(&self, name: &str) -> Option<Type> {
-        match self.stack.find(name) {
-            Some((_, t)) => Some(t),
-            None => match self.symbols.get(name) {
+        match (self.stack.find(name), self.find_arg(name)) {
+            (Some((_, t)), _) => Some(t),
+            (_, Some((_, t))) => Some(t),
+            (None, None) => match self.symbols.get(name) {
                 Some(v) => Some(*v),
                 None => None,
             },
         }
+    }
+
+    fn find_arg(&self, name: &str) -> Option<(u32, Type)> {
+        let mut off: u32 = 0;
+
+        if let Some(s) = &self.cur_fn.last() {
+            match self.funcs.get(*s) {
+                None => None,
+                Some((_, args)) => {
+                    for (arg, t) in args {
+                        if arg == name {
+                            return Some((off, *t));
+                        } else {
+                            let o: u32 = (*t).into();
+                            off += o
+                        }
+                    }
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    }
+
+    fn start_scope(&mut self) {
+        self.stack.scope += 1;
+    }
+
+    fn end_scope(&mut self) {
+        // Here we remove all the variables on this scope
+        let sz = self.stack.pop();
+
+        self.emit(IR::Shrink(sz));
+        self.stack.scope -= 1;
     }
 
     //TODO: do some static analysis here on the local variables, it is missing.
@@ -268,8 +341,12 @@ impl Compiler {
             AST::GetVar(name) => {
                 match self.stack.find(name) {
                     Some((off, t)) => self.emit(IR::GetLocal(off, t.into())),
-                    None => self.emit(IR::GetGlobal(name.to_owned())),
+                    None => match self.find_arg(name) {
+                        Some((off, t)) => self.emit(IR::GetArg(off, t.into())),
+                        None => self.emit(IR::GetGlobal(name.to_owned())),
+                    },
                 }
+
                 cyan_ln!("Looking var {} = {:?}", name, self.find_type(name));
                 match self.find_type(name) {
                     Some(t) => Ok(Some(t)),
@@ -309,15 +386,11 @@ impl Compiler {
             }
 
             AST::Block(v) => {
-                self.stack.scope += 1;
+                self.start_scope();
 
                 self.ast_to_ir(&AST::Many(v.to_owned()))?;
 
-                // Here we remove all the variables on this scope
-                let sz = self.stack.pop();
-
-                self.emit(IR::Shrink(sz));
-                self.stack.scope -= 1;
+                self.end_scope();
 
                 Ok(None)
             }
@@ -398,44 +471,100 @@ impl Compiler {
 
                 Ok(None)
             }
+
+            AST::FunDecl(t, name, args, block) => {
+                self.funcs.insert(name.to_owned(), (*t, args.to_owned()));
+                self.cur_fn.push(name.to_owned());
+
+                self.emit(IR::FnName(name.to_owned()));
+                self.emit(IR::ResetStack);
+
+                match &**block {
+                    AST::Block(v) => {
+                        self.start_scope();
+
+                        for e in v {
+                            self.ast_to_ir(e)?;
+                        }
+
+                        // The result of the last expression will be stored in AX
+                        self.emit(IR::POP);
+                        self.end_scope();
+                    }
+                    _ => panic!("Expected block!"),
+                }
+                //self.ast_to_ir(block)?;
+
+                self.emit(IR::RestoreStack);
+                if name != "_start" {
+                    self.emit(IR::RET);
+                }
+
+                self.cur_fn.pop();
+
+                Ok(None)
+            }
+
+            AST::FunCall(name, args) => {
+                let to_shrink = args.len() * 4;
+
+                println!("Function: {} => {:?}", name, args);
+
+                for expr in args.iter().rev() {
+                    self.ast_to_ir(expr)?;
+                }
+
+                self.emit(IR::Call(name.to_string()));
+
+                self.emit(IR::Shrink(to_shrink as u32));
+                self.emit(IR::PushAX);
+
+                match self.funcs.get(name) {
+                    None => panic!("Function not defined {}", name),
+                    Some((t, _)) => Ok(Some(*t)),
+                }
+            }
         }
     }
-}
 
-pub fn ir_to_asm(is: &[IR], symbol_table: &HashMap<String, Type>) -> String {
-    red_ln!("{:?}", is);
+    fn ir_to_asm(&self) -> String {
+        red_ln!("{:?}", self.ir);
 
-    let mut s = String::new();
+        let mut s = String::new();
 
-    let sz = |t| match t {
-        Type::INT => "dd",
-        Type::BOOL => "db",
-    };
+        let sz = |t| match t {
+            Type::INT => "dd",
+            Type::BOOL => "db",
+        };
 
-    s.push_str("\nsection .data\n\n");
-    for (name, t) in symbol_table {
-        s.push_str(format!("{} {} 0\n", name, sz(*t)).as_str());
+        s.push_str("\nsection .data\n\n");
+        for (name, t) in &self.symbols {
+            s.push_str(format!("{} {} 0\n", name, sz(*t)).as_str());
+        }
+
+        s.push_str("\nsection .text\n");
+
+        if !self.funcs.contains_key("_start") {
+            s.push_str("\n_start:\n\n");
+            s.push_str("mov rbp, rsp\n");
+        }
+
+        for i in &self.ir {
+            s.push_str(i.emit(&self.symbols).as_str());
+            s.push_str("\n");
+        }
+
+        s
     }
-    s.push_str("\nsection .text\n");
-    s.push_str("\n_start:\n\n");
-    s.push_str("mov rbp, rsp\n");
-
-    for i in is {
-        s.push_str(i.emit(symbol_table).as_str());
-        s.push_str("\n");
-    }
-
-    s
 }
 
 pub fn compile(ast: &AST) -> Result<String, analysis::CompilationError> {
     let mut compiler = Compiler::new();
     compiler.ast_to_ir(ast)?;
-    let vec = compiler.ir;
 
     red_ln!("Symbol table: {:?}", compiler.symbols);
 
-    Ok(ir_to_asm(vec.as_ref(), &compiler.symbols))
+    Ok(compiler.ir_to_asm())
 }
 
 #[cfg(test)]
