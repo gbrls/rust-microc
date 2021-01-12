@@ -1,152 +1,93 @@
-GLOBAL _START
-%MACRO EXIT 0
-MOV EAX, 1   ; 1 STANDS FOR EXIT SYSCALL
-POP BX       ; POP THE STATUS CODE
-INT 0X80     ; MAKE SYSTEM CALL
-%ENDMACRO
+global _start
+%macro EXIT 0
+mov eax, 1   ; 1 stands for EXIT syscall
+pop bx       ; pop the status code
+int 0x80     ; make system call
+%endmacro
 
-SECTION .DATA
+section .data
 
-Y DD 0
+x dd 0
 
-SECTION .TEXT
+section .text
 
-MAX:
-PUSH RBP
-MOV RBP, RSP
-SUB RSP, 4
-MOV AX, [RBP+16]
-PUSH AX
-MOV AX, [RBP+18]
-PUSH AX
-POP BX
-POP AX
-CMP AX, BX
-MOV BX, 1
-MOV CX, 0
-CMOVB AX, BX
-CMOVAE AX, CX
-PUSH AX
-POP AX
-TEST AX, AX
-JE .L0
-MOV AX, [RBP+18]
-PUSH AX
-POP AX
-MOV [RBP-4], AX
-ADD RSP, 0
-JMP .L1
+fib:
+push rbp
+mov rbp, rsp
+sub rsp, 4
+mov ax, [rbp+16]
+push ax
+mov ax, 2
+push ax
+pop bx
+pop ax
+cmp ax, bx
+mov bx, 1
+mov cx, 0
+cmovb ax, bx
+cmovae ax, cx
+push ax
+pop ax
+test ax, ax
+je .L0
+mov ax, [rbp+16]
+push ax
+pop ax
+mov [rbp-4], ax
+add rsp, 0
+jmp .L1
 .L0:
-MOV AX, [RBP+16]
-PUSH AX
-POP AX
-MOV [RBP-4], AX
-ADD RSP, 0
+mov ax, [rbp+16]
+push ax
+mov ax, 1
+push ax
+pop bx
+pop ax
+sub eax, ebx
+push ax
+call fib
+add rsp, 2
+push ax
+mov ax, [rbp+16]
+push ax
+mov ax, 2
+push ax
+pop bx
+pop ax
+sub eax, ebx
+push ax
+call fib
+add rsp, 2
+push ax
+pop bx
+pop ax
+add eax, ebx
+push ax
+pop ax
+mov [rbp-4], ax
+add rsp, 0
 .L1:
-MOV AX, [RBP-4]
-PUSH AX
-POP AX
-ADD RSP, 4
-POP RBP
-RET
+mov ax, [rbp-4]
+push ax
+pop ax
+add rsp, 4
+pop rbp
+ret
 
-MMAX:
-PUSH RBP
-MOV RBP, RSP
-SUB RSP, 4
-MOV AX, [RBP+18]
-PUSH AX
-MOV AX, [RBP+16]
-PUSH AX
-CALL MAX
-ADD RSP, 8
-PUSH AX
-POP AX
-MOV [RBP-4], AX
-MOV AX, [RBP+20]
-PUSH AX
-MOV AX, [RBP-4]
-PUSH AX
-CALL MAX
-ADD RSP, 8
-PUSH AX
-POP AX
-ADD RSP, 4
-POP RBP
-RET
-
-_START:
-PUSH RBP
-MOV RBP, RSP
-SUB RSP, 4
-MOV AX, 10
-PUSH AX
-POP AX
-MOV [RBP-4], AX
-MOV AX, [RBP-4]
-PUSH AX
-MOV AX, 10
-PUSH AX
-POP BX
-POP AX
-CMP AX, BX
-MOV BX, 1
-MOV CX, 0
-CMOVB AX, BX
-CMOVAE AX, CX
-PUSH AX
-POP AX
-TEST AX, AX
-JE .L2
-MOV AX, 3
-PUSH AX
-MOV AX, 10
-PUSH AX
-CALL MAX
-ADD RSP, 8
-PUSH AX
-POP AX
-MOV [Y], AX
-ADD RSP, 0
-JMP .L3
-.L2:
-MOV AX, 13
-PUSH AX
-MOV AX, 2
-PUSH AX
-CALL MAX
-ADD RSP, 8
-PUSH AX
-POP AX
-MOV [Y], AX
-ADD RSP, 0
-.L3:
-MOV AX, [Y]
-PUSH AX
-MOV AX, [RBP-4]
-PUSH AX
-POP BX
-POP AX
-ADD EAX, EBX
-PUSH AX
-POP AX
-MOV [Y], AX
-SUB RSP, 4
-MOV AX, 3
-PUSH AX
-MOV AX, 2
-PUSH AX
-MOV AX, 1
-PUSH AX
-CALL MMAX
-ADD RSP, 12
-PUSH AX
-POP AX
-MOV [RBP-8], AX
-POP AX
-ADD RSP, 8
-POP RBP
-MOV AX, [Y]
-PUSH AX
+_start:
+push rbp
+mov rbp, rsp
+mov ax, 13
+push ax
+call fib
+add rsp, 2
+push ax
+pop ax
+mov [x], ax
+pop ax
+add rsp, 0
+pop rbp
+mov ax, [x]
+push ax
 
 EXIT

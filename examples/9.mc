@@ -17,15 +17,13 @@ int max(int a, int b)
 
 int mmax(int a, int b, int c)
 {
-    int x;
-    x = max(a, b);
-    max(x, c);
+    max(max(a, b), c);
 }
 
 int _start()
 {
     int z;
-    z = 10;
+    z = 9;
     if (z < 10)
     {
         y = max(10, 3);
@@ -37,7 +35,6 @@ int _start()
 
     y = y + z;
 
-    int k;
-    k = mmax(1, 2, 3);
+    y = y + mmax(1, 2, 3);
 }
 y;

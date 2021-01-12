@@ -506,7 +506,7 @@ impl Compiler {
             }
 
             AST::FunCall(name, args) => {
-                let to_shrink = args.len() * 4;
+                let to_shrink = args.len() * 2;
 
                 println!("Function: {} => {:?}", name, args);
 
