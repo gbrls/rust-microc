@@ -121,6 +121,9 @@ pub enum IR {
     Call(String),
     RET,
     PushAX,
+
+    // Builtin functions
+    Print64,
 }
 
 impl IR {
@@ -151,11 +154,13 @@ impl IR {
 
             IR::GetGlobal(v) => {
                 let sz: u32 = (*syms.get(v).unwrap()).into();
-                format!("mov {}, [{}]\npush ax", reg(sz), v)
+                format!("mov {}, [rel {}]\npush ax", reg(sz), v)
+                //format!("lea rcx, [rel {}]\npush cx", v)
             }
             IR::SetGlobal(v) => {
                 let sz: u32 = (*syms.get(v).unwrap()).into();
-                format!("pop ax\nmov [{}], {}", v, reg(sz))
+                format!("pop ax\nmov [rel {}], {}", v, reg(sz))
+                //format!("pop ax\nlea rcx, [rel {}]\nmov [rcx], ax", v)
             }
 
             IR::GetLocal(v, sz) => format!("mov {}, [rbp-{}]\npush ax", reg(*sz), v),
@@ -178,6 +183,8 @@ impl IR {
             IR::RET => "ret".to_string(),
             IR::Call(n) => format!("call {}", n),
             IR::PushAX => "push ax".to_string(),
+
+            IR::Print64 => "PRINT64".to_string(),
         }
     }
 }
@@ -496,7 +503,7 @@ impl Compiler {
                 //self.ast_to_ir(block)?;
 
                 self.emit(IR::RestoreStack);
-                if name != "_start" {
+                if name != "main" {
                     self.emit(IR::RET);
                 }
 
@@ -514,14 +521,23 @@ impl Compiler {
                     self.ast_to_ir(expr)?;
                 }
 
-                self.emit(IR::Call(name.to_string()));
+                if name != "print" {
+                    self.emit(IR::Call(name.to_string()));
+                } else {
+                    self.emit(IR::Print64);
+                }
 
                 self.emit(IR::Shrink(to_shrink as u32));
                 self.emit(IR::PushAX);
 
-                match self.funcs.get(name) {
-                    None => panic!("Function not defined {}", name),
-                    Some((t, _)) => Ok(Some(*t)),
+                //TODO: abstract builtin functions
+                if name != "print" {
+                    match self.funcs.get(name) {
+                        None => panic!("Function not defined {}", name),
+                        Some((t, _)) => Ok(Some(*t)),
+                    }
+                } else {
+                    Ok(None)
                 }
             }
         }
@@ -542,16 +558,27 @@ impl Compiler {
             s.push_str(format!("{} {} 0\n", name, sz(*t)).as_str());
         }
 
+        s.push_str("pstr64 db \"%hu\",10,0\n");
+        s.push_str("hellostr db \"MicroC :)\",0\n");
+
         s.push_str("\nsection .text\n");
 
-        if !self.funcs.contains_key("_start") {
-            s.push_str("\n_start:\n\n");
+        if !self.funcs.contains_key("main") {
+            s.push_str("\nmain:\n\n");
             s.push_str("mov rbp, rsp\n");
+            s.push_str("\nxor rax, rax\nxor rbx, rbx\nxor rcx, rcx\nxor rdx, rdx\n\n");
         }
 
         for i in &self.ir {
             s.push_str(i.emit(&self.symbols).as_str());
             s.push_str("\n");
+
+            match i {
+                IR::FnName(name) if name == "main" => {
+                    s.push_str("\nxor rax, rax\nxor rbx, rbx\nxor rcx, rcx\nxor rdx, rdx\n\n");
+                }
+                _ => (),
+            };
         }
 
         s

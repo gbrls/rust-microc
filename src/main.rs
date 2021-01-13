@@ -1,8 +1,10 @@
-use ast::Type;
+
+//TODO: update tests
+//TODO: move from stack based to register based
+//TODO: benchmark against gcc
 
 //TODO: Add support for the ternary operator
 //TODO: some tests fail because the OS can't open/execute the .o or a.out files
-//TODO: recoverable errors
 
 #[macro_use]
 extern crate nom;
@@ -41,16 +43,11 @@ fn compile_and_run(input: &str) -> Result<i32, analysis::CompilationError> {
 }
 
 fn main() -> Result<(), analysis::CompilationError> {
-    //exec_file("examples/1.mc");
-    exec_file("examples/2.mc")?;
-    exec_file("examples/3.mc")?;
-    exec_file("examples/4.mc")?;
-    exec_file("examples/5.mc")?;
-    exec_file("examples/6.mc")?;
-    exec_file("examples/7.mc")?;
-    exec_file("examples/8.mc")?;
-    exec_file("examples/9.mc")?;
-    exec_file("examples/10.mc")?;
+    exec_file("examples/gcc1.mc")?;
+    exec_file("examples/gcc2.mc")?;
+    exec_file("examples/gcc3.mc")?;
+
+    exec_file("examples/gccfib.mc")?;
 
     Ok(())
 }
@@ -87,21 +84,26 @@ mod tests {
 
     #[test]
     fn test_globals() {
-        assert_compile(4, "int a;int y;a = 10; a = a * a; y = a / 20 - 1; y;");
+        assert_compile(4, "int a;int y;int main() {a = 10; a = a * a; y = a / 20 - 1; }y;");
 
         assert_compile(
             10,
-            "int a; { a = 10; if (false) { a = 1; if (false) { a = 2; } a = 5; } } a;",
+            "int a; int main() {{ a = 10; if (false) { a = 1; if (false) { a = 2; } a = 5; } }} a;",
         );
 
         assert_compile(
             3, 
-            "int a; { a = 0; if (false) { a = 1; } else { a = 2; if (true) { a = 3; } else { a = 4; } } } a;"
+            "int a; int main() {{ a = 0; if (false) { a = 1; } else { a = 2; if (true) { a = 3; } else { a = 4; } } }} a;"
         );
 
         assert_compile(
             12,
-            "int a; { a = 10; if (true && true && false) { a = 11; } else { if (true && (false || true)) { a = 12; } else { if (true || false) { a = 13; } } } } a;",
+            "int a; int main() {{ a = 10; if (true && true && false) { a = 11; } else { if (true && (false || true)) { a = 12; } else { if (true || false) { a = 13; } } } }} a;",
+        );
+
+        assert_compile(
+            233,
+            "int fib(int n) { int ans; if (n < 2) { ans = n; } else { ans = fib(n - 1) + fib(n - 2); } ans; } int x; int main() { x = fib(13); } x;"
         );
     }
 }

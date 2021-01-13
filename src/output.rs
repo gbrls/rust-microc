@@ -48,7 +48,7 @@ fn assemble(fname: &str) {
 }
 
 fn link(fname: &str) {
-    let output = Command::new("ld")
+    let output = Command::new("gcc")
         .arg(fname)
         .arg("-o")
         .arg("asm/a.out")
