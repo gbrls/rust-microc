@@ -1,7 +1,7 @@
-global _start
+global main
 %macro EXIT 0
+mov bx, ax
 mov eax, 1   ; 1 stands for EXIT syscall
-pop bx       ; pop the status code
 int 0x80     ; make system call
 %endmacro
 
@@ -74,7 +74,7 @@ add rsp, 4
 pop rbp
 ret
 
-_start:
+main:
 push rbp
 mov rbp, rsp
 mov ax, 13
@@ -83,11 +83,11 @@ call fib
 add rsp, 2
 push ax
 pop ax
-mov [x], ax
+mov [rel x], ax
 pop ax
 add rsp, 0
 pop rbp
-mov ax, [x]
+mov ax, [rel x]
 push ax
 
 EXIT

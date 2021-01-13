@@ -14,7 +14,7 @@ int fib(int n)
 }
 
 int x;
-int _start()
+int main()
 {
     x = fib(13);
 }

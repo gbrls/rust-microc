@@ -41,15 +41,9 @@ fn compile_and_run(input: &str) -> Result<i32, analysis::CompilationError> {
 }
 
 fn main() -> Result<(), analysis::CompilationError> {
-    //exec_file("examples/1.mc");
-    exec_file("examples/2.mc")?;
-    exec_file("examples/3.mc")?;
-    exec_file("examples/4.mc")?;
-    exec_file("examples/5.mc")?;
-    exec_file("examples/6.mc")?;
-    exec_file("examples/7.mc")?;
-    exec_file("examples/8.mc")?;
-    exec_file("examples/9.mc")?;
+    exec_file("examples/gcc1.mc")?;
+    exec_file("examples/gcc2.mc")?;
+
     exec_file("examples/10.mc")?;
 
     Ok(())

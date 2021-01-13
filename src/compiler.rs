@@ -151,11 +151,13 @@ impl IR {
 
             IR::GetGlobal(v) => {
                 let sz: u32 = (*syms.get(v).unwrap()).into();
-                format!("mov {}, [{}]\npush ax", reg(sz), v)
+                format!("mov {}, [rel {}]\npush ax", reg(sz), v)
+                //format!("lea rcx, [rel {}]\npush cx", v)
             }
             IR::SetGlobal(v) => {
                 let sz: u32 = (*syms.get(v).unwrap()).into();
-                format!("pop ax\nmov [{}], {}", v, reg(sz))
+                format!("pop ax\nmov [rel {}], {}", v, reg(sz))
+                //format!("pop ax\nlea rcx, [rel {}]\nmov [rcx], ax", v)
             }
 
             IR::GetLocal(v, sz) => format!("mov {}, [rbp-{}]\npush ax", reg(*sz), v),
@@ -496,7 +498,7 @@ impl Compiler {
                 //self.ast_to_ir(block)?;
 
                 self.emit(IR::RestoreStack);
-                if name != "_start" {
+                if name != "main" {
                     self.emit(IR::RET);
                 }
 
@@ -544,8 +546,8 @@ impl Compiler {
 
         s.push_str("\nsection .text\n");
 
-        if !self.funcs.contains_key("_start") {
-            s.push_str("\n_start:\n\n");
+        if !self.funcs.contains_key("main") {
+            s.push_str("\nmain:\n\n");
             s.push_str("mov rbp, rsp\n");
         }
 
