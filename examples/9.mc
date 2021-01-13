@@ -20,7 +20,7 @@ int mmax(int a, int b, int c)
     max(max(a, b), c);
 }
 
-int _start()
+int main()
 {
     int z;
     z = 9;

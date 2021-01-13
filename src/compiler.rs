@@ -566,11 +566,19 @@ impl Compiler {
         if !self.funcs.contains_key("main") {
             s.push_str("\nmain:\n\n");
             s.push_str("mov rbp, rsp\n");
+            s.push_str("\nxor rax, rax\nxor rbx, rbx\nxor rcx, rcx\nxor rdx, rdx\n\n");
         }
 
         for i in &self.ir {
             s.push_str(i.emit(&self.symbols).as_str());
             s.push_str("\n");
+
+            match i {
+                IR::FnName(name) if name == "main" => {
+                    s.push_str("\nxor rax, rax\nxor rbx, rbx\nxor rcx, rcx\nxor rdx, rdx\n\n");
+                }
+                _ => (),
+            };
         }
 
         s

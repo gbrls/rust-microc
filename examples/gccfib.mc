@@ -22,7 +22,7 @@ int fib(int n)
 int x;
 int main()
 {
-    x = fib(13);
+    x = 0;
+    print(fib(23));
 }
 x;
-// more than 13 it overflows

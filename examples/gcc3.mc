@@ -1,15 +1,17 @@
 int main()
 {
-    int x;
-    int max;
 
-    max = 65536 - 1;
-    x = max;
+    int x;
+
+    x = 100;
 
     while (0 < x)
     {
         print(x);
         x = x - 1;
     }
+
+    print(0);
+
     x;
 }
