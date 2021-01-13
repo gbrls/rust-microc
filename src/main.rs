@@ -103,5 +103,10 @@ mod tests {
             12,
             "int a; { a = 10; if (true && true && false) { a = 11; } else { if (true && (false || true)) { a = 12; } else { if (true || false) { a = 13; } } } } a;",
         );
+
+        assert_compile(
+            233,
+            "int fib(int n) { int ans; if (n < 2) { ans = n; } else { ans = fib(n - 1) + fib(n - 2); } ans; } int x; int _start() { x = fib(13); } x;"
+        );
     }
 }
