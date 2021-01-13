@@ -7,7 +7,13 @@ int fib(int n)
     }
     else
     {
-        ans = fib(n - 1) + fib(n - 2);
+        int a;
+        int b;
+
+        a = fib(n - 1);
+        b = fib(n - 2);
+
+        ans = a + b;
     }
 
     ans;

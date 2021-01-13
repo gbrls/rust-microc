@@ -1,6 +1,27 @@
 global main
+extern printf
+extern puts 
 %macro EXIT 0
 mov bx, ax
 mov eax, 1   ; 1 stands for EXIT syscall
 int 0x80     ; make system call
+%endmacro
+
+%macro PRINT64 0
+pop bx
+
+; Arguments:
+; rdi, rsi, rdx, rcx, r8, r9
+; https://stackoverflow.com/questions/2535989/what-are-the-calling-conventions-for-unix-linux-system-calls-and-user-space-f
+
+lea rdi, [rel pstr64]
+mov rsi, rbx
+
+xor eax, eax ; https://stackoverflow.com/questions/6212665/why-is-eax-zeroed-before-a-call-to-printf
+call printf WRT ..plt
+%endmacro
+
+%macro HELLO 0
+lea rdi, [rel hellostr]
+call puts WRT ..plt
 %endmacro

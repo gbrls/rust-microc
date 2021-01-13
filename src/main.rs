@@ -43,8 +43,8 @@ fn compile_and_run(input: &str) -> Result<i32, analysis::CompilationError> {
 fn main() -> Result<(), analysis::CompilationError> {
     exec_file("examples/gcc1.mc")?;
     exec_file("examples/gcc2.mc")?;
-
-    exec_file("examples/10.mc")?;
+    exec_file("examples/gccfib.mc")?;
+    exec_file("examples/gcc3.mc")?;
 
     Ok(())
 }

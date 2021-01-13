@@ -121,6 +121,9 @@ pub enum IR {
     Call(String),
     RET,
     PushAX,
+
+    // Builtin functions
+    Print64,
 }
 
 impl IR {
@@ -180,6 +183,8 @@ impl IR {
             IR::RET => "ret".to_string(),
             IR::Call(n) => format!("call {}", n),
             IR::PushAX => "push ax".to_string(),
+
+            IR::Print64 => "PRINT64".to_string(),
         }
     }
 }
@@ -516,14 +521,23 @@ impl Compiler {
                     self.ast_to_ir(expr)?;
                 }
 
-                self.emit(IR::Call(name.to_string()));
+                if name != "print" {
+                    self.emit(IR::Call(name.to_string()));
+                } else {
+                    self.emit(IR::Print64);
+                }
 
                 self.emit(IR::Shrink(to_shrink as u32));
                 self.emit(IR::PushAX);
 
-                match self.funcs.get(name) {
-                    None => panic!("Function not defined {}", name),
-                    Some((t, _)) => Ok(Some(*t)),
+                //TODO: abstract builtin functions
+                if name != "print" {
+                    match self.funcs.get(name) {
+                        None => panic!("Function not defined {}", name),
+                        Some((t, _)) => Ok(Some(*t)),
+                    }
+                } else {
+                    Ok(None)
                 }
             }
         }
@@ -543,6 +557,9 @@ impl Compiler {
         for (name, t) in &self.symbols {
             s.push_str(format!("{} {} 0\n", name, sz(*t)).as_str());
         }
+
+        s.push_str("pstr64 db \"%hu\",10,0\n");
+        s.push_str("hellostr db \"MicroC :)\",0\n");
 
         s.push_str("\nsection .text\n");
 
