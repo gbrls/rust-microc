@@ -17,8 +17,10 @@ pop bx
 lea rdi, [rel pstr64]
 mov rsi, rbx
 
+push ax
 xor eax, eax ; https://stackoverflow.com/questions/6212665/why-is-eax-zeroed-before-a-call-to-printf
 call printf WRT ..plt
+pop ax
 %endmacro
 
 %macro HELLO 0
@@ -100,6 +102,11 @@ pop ax
 mov [rbp-4], ax
 add rsp, 8
 .L1:
+mov ax, [rbp-4]
+push ax
+PRINT64
+add rsp, 2
+push ax
 mov ax, [rbp-4]
 push ax
 pop ax

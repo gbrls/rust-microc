@@ -16,6 +16,7 @@ int fib(int n)
         ans = a + b;
     }
 
+    print(ans);
     ans;
 }
 
