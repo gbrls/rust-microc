@@ -9,3 +9,4 @@ To use the project from sources you'll need the [Rust toolchain](https://rustup.
 - int64 support.
 - better FFI.
 - strings, arrays and pointers.
+- Refactor bytecode to x86_64 code.
